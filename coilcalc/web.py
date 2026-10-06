@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import platform
 import threading
 import time
 from dataclasses import dataclass, field
@@ -170,8 +171,10 @@ class App:
     def _api(self, req: Request) -> Response:
         path, method = req.path, req.method
         if method == "GET" and path == "/api/health":
+            # 版の表示(画面左上・操作説明書)に使う。外枠(Rust)の版は外枠が見出しに足す
             return json_response(200, {"ok": True, "app": self.conf.get("display_name"),
                                        "version": self.conf.get("version"), "mode": self.mode,
+                                       "python": platform.python_version(),
                                        "heartbeat_seconds": self.conf["browser"]["heartbeat_seconds"]})
         if method == "GET" and path == "/api/spec":
             return json_response(200, calc.spec())

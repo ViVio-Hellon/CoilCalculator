@@ -7,8 +7,13 @@
   デスクトップ版  /api/… は外枠(Rust)が受けて Python の標準入力へ渡す(ポート無し)
   ブラウザ版      /api/… は 127.0.0.1 の Python が受ける(予備)
 
+  左上の部品:
+    - 版(アプリ・外枠(Rust)・Python・どちらの版で動いているか)。押すと詳細
+    - 操作説明: いま見ている形状の説明書(manual/)を開く。デスクトップ版は外枠に
+      別の窓を頼み(open_manual)、ブラウザ版は別のタブで開く
+
   ブラウザ版のときだけ:
-    - 右上の「終了」を出す(デスクトップ版は窓の × で閉じる)
+    - 左上の「終了」を出す(デスクトップ版は窓の × で閉じる)
     - 画面が開いていることを数秒ごとに知らせる。タブを全部閉じるとしばらくして
       Python が自分で終わる(残っているとデスクトップ版が開けないため)
 
@@ -111,17 +116,88 @@
         });
     }
 
+    // --- 版の表示 ---
+    const MODE_LABEL = { desktop: 'デスクトップ版', browser: 'ブラウザ版' };
+
+    function showVersion(health, shellVersion) {
+        const root = document.documentElement;
+        root.dataset.version = health.version || '';
+        const mode = MODE_LABEL[health.mode] || health.mode || '';
+        document.getElementById('app-version-text').textContent = `v${health.version} ${mode}`;
+        const rows = [
+            ['アプリ', `${health.app || ''} v${health.version}`],
+            ['動き方', health.mode === 'desktop'
+                ? 'デスクトップ版(CoilCalculator.exe・ポートを使わない)'
+                : `ブラウザ版(Start.vbs・${location.host})`],
+        ];
+        if (health.mode === 'desktop') rows.push(['外枠(Rust)', shellVersion ? `v${shellVersion}` : '不明']);
+        rows.push(['計算(Python)', `Python ${health.python || '不明'}`]);
+        const list = document.getElementById('app-version-list');
+        list.replaceChildren(...rows.flatMap(([k, v]) => {
+            const dt = document.createElement('dt');
+            dt.textContent = k;
+            const dd = document.createElement('dd');
+            dd.textContent = v;
+            return [dt, dd];
+        }));
+    }
+
+    function setupVersionPanel() {
+        const button = document.getElementById('app-version');
+        const panel = document.getElementById('app-version-panel');
+        const toggle = (open) => {
+            panel.hidden = !open;
+            button.setAttribute('aria-expanded', open ? 'true' : 'false');
+        };
+        button.addEventListener('click', () => toggle(panel.hidden));
+        document.addEventListener('click', (e) => {
+            if (!panel.hidden && !e.target.closest('#app-version, #app-version-panel')) toggle(false);
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !panel.hidden) { toggle(false); button.focus(); }
+        });
+    }
+
+    // --- 操作説明書 ---
+    let mode = '';
+
+    /** いま見ている形状(コイル / 平板)の説明書の頁 */
+    function currentManualPage() {
+        const active = document.querySelector('.shape-btn.active');
+        return active && active.dataset.shape === 'plate' ? 'plate' : 'coil';
+    }
+
+    function openManual(page) {
+        const tauri = window.__TAURI__;
+        if (mode === 'desktop' && tauri && tauri.core && tauri.core.invoke) {
+            // デスクトップ版の窓は新しいタブを持たないので、外枠に別の窓を開いてもらう
+            tauri.core.invoke('open_manual', { page }).catch((err) => {
+                report(err, 'open_manual');
+                showBanner(`操作説明書を開けませんでした: ${err}`);
+            });
+            return;
+        }
+        // ブラウザ版: 同じタブを使い回す(押すたびにタブが増えないように)
+        const opened = window.open(`manual/${page}.html`, 'coil-calculator-manual');
+        if (!opened) showBanner('操作説明書を開けませんでした(ブラウザがポップアップを止めています)。');
+    }
+
     async function start() {
+        setupVersionPanel();
+        document.getElementById('app-help').addEventListener('click', () => openManual(currentManualPage()));
         try {
             const res = await fetch('/api/health', { cache: 'no-store' });
             const health = await res.json();
+            mode = health.mode;
             document.documentElement.dataset.mode = health.mode;
+            showVersion(health, res.headers.get('X-Coil-Shell-Version'));
             if (health.mode === 'browser') setupBrowser(health);
         } catch (err) {
+            document.getElementById('app-version-text').textContent = '版: 不明';
             showBanner('計算の処理(Python)と繋がりません。アプリを開き直してください。');
         }
     }
 
-    window.AppShell = { calc, report, showBanner, hideBanner };
+    window.AppShell = { calc, report, showBanner, hideBanner, openManual };
     document.addEventListener('DOMContentLoaded', start);
 })();

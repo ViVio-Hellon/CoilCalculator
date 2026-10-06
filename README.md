@@ -28,6 +28,12 @@
 
   ブラウザ版はタブを全部閉じると 1〜2 分で自動的に終わります(残っているとデスクトップ版が開けないため)。
 
+- **版**: 画面の左上に「v1.1.0 デスクトップ版」のように出ます。押すと、アプリ・外枠(Rust)・
+  計算(Python)の版と、どちらの版で動いているかが出ます。デスクトップ版の窓の題名・印刷した計算書にも版が入ります
+- **操作説明書**: 画面の左上の「操作説明」で、いま見ている形状(コイル / 平板)の説明書が開きます
+  (デスクトップ版は別の窓、ブラウザ版は別のタブ)。中身は `app/static/manual/`(画面の写真入りの HTML)。
+  変更の記録は [docs/変更履歴.md](docs/変更履歴.md)
+
 ## 要るもの
 
 - **Python 3.8 以上だけ**。`pip install` は要りません(標準ライブラリだけで動きます。
@@ -66,7 +72,7 @@ app/static/(JS)  画面の操作・3D(three.js)・グラフ(Chart.js)・印刷 �
 ## 試験
 
 ```
-python -m unittest discover -s tests -t .          # Python(57件。node があれば元の JS との突き合わせも)
+python -m unittest discover -s tests -t .          # Python(66件。node があれば元の JS との突き合わせも)
 cd src-tauri && cargo test --release               # Rust
 xvfb-run python scripts/desktop_smoke.py --exe src-tauri/target/release/CoilCalculator   # exe を本当に起動
 ```
@@ -76,6 +82,13 @@ xvfb-run python scripts/desktop_smoke.py --exe src-tauri/target/release/CoilCalc
   約 3,000 組(うち計算まで進む約 2,200 組)で確かめる(範囲の判定・結果・詳細計算過程・モーダル・グラフの点)
 - `scripts/desktop_smoke.py` … exe を起動して、計算が返る・**どのプロセスもポートで待ち受けない**・
   止めたら Python も終わる・ブラウザ版との排他(両方向)を確かめる
+- `tests/test_manual.py` … 説明書の頁・写真がそろっている・写真の大きさ・説明書の版がツールの版と同じ
+
+画面を変えたら、説明書の写真を撮り直します(作業用。node・Playwright・xdotool・ImageMagick を使う):
+
+```
+xvfb-run -a -s "-screen 0 1600x1000x24" python scripts/make_manual_images.py --exe src-tauri/target/release/CoilCalculator
+```
 
 Windows の exe は GitHub Actions が作ります(`.github/workflows/desktop-windows.yml`。
 成果物 `CoilCalculator-windows`)。exe はアプリのフォルダの直下(`bridge.py` と同じ場所)に置きます。
@@ -87,7 +100,7 @@ CoilCalculator.exe  (Actions の成果物を置く)    Start.vbs / start.bat / s
 bridge.py          デスクトップ版の入口         start_app.py / process_manager.py  ブラウザ版の起動・停止の本体
 coilcalc/          計算と答え方(Python)         app/static/                        画面(HTML/JS/CSS・同梱ライブラリ)
 src-tauri/         デスクトップ版の外枠(Rust)   config/app.json                    版・ポート・自動終了の秒数
-tests/             試験                          scripts/                           exe の確認・アイコン作り
+tests/             試験                          scripts/                           exe の確認・説明書の写真・アイコン作り
 ```
 
 作業フォルダ(ログ・錠): `%LOCALAPPDATA%\CoilCalculator\`(`logs\coilcalc.log`、`runtime\instance.lock`)

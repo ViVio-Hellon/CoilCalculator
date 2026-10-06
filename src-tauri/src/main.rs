@@ -25,7 +25,7 @@ use std::thread;
 use std::time::Duration;
 
 use tauri::http::{Request, Response};
-use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use bridge::{Bridge, Phase};
@@ -34,6 +34,11 @@ use instance::Refusal;
 /// 画面の宛先の名前
 const SCHEME: &str = "app";
 const TITLE: &str = "コイル・平板 重量計算ツール";
+/// 外枠の版。`config/app.json`・`tauri.conf.json` と同じ(試験が突き合わせる)
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// 操作説明書の頁(`app/static/manual/`)。ここに無い名前は開かない
+const MANUAL_PAGES: [&str; 3] = ["index", "coil", "plate"];
 
 /// 終わったときの番号(ブラウザ版の `start_app.py` と同じ)
 const EXIT_OTHER_RUNNING: i32 = 3;
@@ -153,7 +158,8 @@ fn call_python(bridge: &Bridge, request: Request<Vec<u8>>) -> Response<Vec<u8>> 
         .collect();
     match bridge.call(request.method().as_str(), uri.path(), uri.query().unwrap_or(""), headers, request.body()) {
         Ok(reply) => {
-            let mut builder = Response::builder().status(reply.status);
+            // 画面の「版」に外枠の版も出す(Python は外枠の版を知らない)
+            let mut builder = Response::builder().status(reply.status).header("X-Coil-Shell-Version", VERSION);
             for (k, v) in &reply.headers {
                 // 長さと転送の方法は WebView が自分で決める
                 if k.eq_ignore_ascii_case("content-length") || k.eq_ignore_ascii_case("transfer-encoding") {
@@ -165,6 +171,29 @@ fn call_python(bridge: &Bridge, request: Request<Vec<u8>>) -> Response<Vec<u8>> 
         }
         Err(reason) => json_error(503, "python_down", &reason),
     }
+}
+
+/// 操作説明書を別の窓で開く(画面の「操作説明」から)。開いていれば、その頁へ移して前に出す。
+#[tauri::command]
+fn open_manual(app: AppHandle, page: String) -> Result<(), String> {
+    if !MANUAL_PAGES.contains(&page.as_str()) {
+        return Err(format!("そんな頁はありません: {page}"));
+    }
+    let url = app_url(&format!("/manual/{page}.html"));
+    if let Some(window) = app.get_webview_window("manual") {
+        window.navigate(url).map_err(|e| e.to_string())?;
+        let _ = window.unminimize();
+        let _ = window.show();
+        return window.set_focus().map_err(|e| e.to_string());
+    }
+    WebviewWindowBuilder::new(&app, "manual", WebviewUrl::External(url))
+        .title(format!("操作説明書 ─ {TITLE} v{VERSION}"))
+        .inner_size(1100.0, 860.0)
+        .min_inner_size(640.0, 480.0)
+        .on_navigation(|url| is_app_url(url))
+        .build()
+        .map(|_| ())
+        .map_err(|e| format!("操作説明書の窓を開けませんでした: {e}"))
 }
 
 /// 錠を取れなかった。**後から開いたこちらが止まる。**
@@ -214,6 +243,14 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![open_manual])
+        .on_window_event(|window, event| {
+            // いちばん大きい窓を閉じたら終わる(操作説明書の窓だけが残って、
+            // Python と錠を握ったままにならないように)
+            if window.label() == "main" && matches!(event, WindowEvent::Destroyed) {
+                window.app_handle().exit(0);
+            }
+        })
         .register_asynchronous_uri_scheme_protocol(SCHEME, move |_ctx, request, responder| {
             let bridge = for_protocol.clone();
             // 要求ごとに別のスレッドで答える(Python の起動を待つ要求が画面のファイルを止めない)
@@ -259,7 +296,7 @@ fn main() {
             });
 
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(app_url("/")))
-                .title(TITLE)
+                .title(format!("{TITLE} v{VERSION}"))
                 .inner_size(1500.0, 940.0)
                 .min_inner_size(1024.0, 680.0)
                 .center()
@@ -289,6 +326,15 @@ mod tests {
         assert!(is_app_url(&url));
         assert!(url.as_str().ends_with("/coil/app-shell.js"));
         assert!(!is_app_url(&"http://127.0.0.1:8741/".parse().unwrap()));
+    }
+
+    #[test]
+    fn 操作説明書の頁はすべてある() {
+        std::env::remove_var("COIL_TOOL_ROOT");
+        for page in MANUAL_PAGES {
+            let file = app_root().join("app").join("static").join("manual").join(format!("{page}.html"));
+            assert!(file.is_file(), "{}", file.display());
+        }
     }
 
     #[test]

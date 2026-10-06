@@ -23,10 +23,25 @@
 </head>
 <body>
     <div class="container">
-        <!-- ブラウザ版だけの「終了」(デスクトップ版は窓の × で閉じる。app-shell.js が出す) -->
-        <button type="button" id="app-quit" class="app-quit" hidden title="ブラウザ版を終了します">
-            <i class="fas fa-power-off"></i>終了
-        </button>
+        <!-- 左上: 版・操作説明書・(ブラウザ版だけ)終了。中身は app-shell.js が入れる -->
+        <div class="app-tools" role="group" aria-label="ツールの情報と操作">
+            <button type="button" id="app-version" class="app-chip" aria-expanded="false"
+                    aria-controls="app-version-panel" title="版の詳細を見ます">
+                <i class="fas fa-tag"></i><span id="app-version-text">版を確認中…</span>
+            </button>
+            <button type="button" id="app-help" class="app-chip" title="いま見ている形状の操作説明書を開きます">
+                <i class="fas fa-book"></i>操作説明
+            </button>
+            <!-- ブラウザ版だけの「終了」(デスクトップ版は窓の × で閉じる) -->
+            <button type="button" id="app-quit" class="app-chip app-quit" hidden title="ブラウザ版を終了します">
+                <i class="fas fa-power-off"></i>終了
+            </button>
+            <div id="app-version-panel" class="app-version-panel" role="dialog" aria-label="版の詳細" hidden>
+                <h2 class="app-version-panel__title">版の詳細</h2>
+                <dl id="app-version-list"></dl>
+                <p class="app-version-panel__note">不具合を知らせるときは、この画面の版を一緒に伝えてください。</p>
+            </div>
+        </div>
 
         <!-- 背景の切替(この PC のブラウザに覚える。まだ選んでいなければ Windows の設定に従う) -->
         <div class="theme-switch" role="group" aria-label="背景">

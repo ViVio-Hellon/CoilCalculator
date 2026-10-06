@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>操作説明書 平板 ─ コイル・平板 重量計算ツール</title>
+<link rel="stylesheet" href="manual.css">
+<script src="manual.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="top__inner">
+    <p class="top__title">コイル・平板 重量計算ツール 操作説明書</p>
+    <span class="top__version">この説明書の版: <span data-manual-version>v1.1.0</span></span>
+    <span class="live" id="live-version" hidden></span>
+    <nav class="nav" aria-label="説明書の頁">
+      <a href="index.html">はじめに</a>
+      <a href="coil.html">コイル</a>
+      <a href="plate.html" aria-current="page">平板</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h1>平板の使い方</h1>
+    <p class="lead">平板の寸法 <b>A・B</b> と<b>板厚・比重</b>を入れると、<b>重量(kg)・面積(m²)・体積(cm³)</b>がすぐに出ます。画面の上の真ん中で「平板」を選ぶと、この画面になります。</p>
+    <ul class="toc">
+      <li><a href="#map">画面の見取り図</a></li>
+      <li><a href="#steps">計算のしかた</a></li>
+      <li><a href="#input">入れられる範囲</a></li>
+      <li><a href="#result">結果と詳しい計算</a></li>
+      <li><a href="#3d">3D の図</a></li>
+      <li><a href="#chart">グラフ</a></li>
+      <li><a href="#print">印刷</a></li>
+      <li><a href="#formula">計算式</a></li>
+    </ul>
+  </section>
+
+  <section id="map">
+    <h2>画面の見取り図</h2>
+    <figure>
+      <img src="img/plate-overview.jpg" alt="平板の画面。番号の札で各部を示している" width="1600" height="950">
+      <figcaption>番号は下の表と同じです。左上の版・操作説明、右上の背景の切替はコイルの画面と同じです。</figcaption>
+    </figure>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>番号</th><th>名前</th><th>すること</th></tr></thead>
+        <tbody>
+          <tr><td><span class="num">1</span></td><td>材質プリセット</td><td>アルミニウム・鉄・銅・ステンレスから選ぶと、比重と 3D の色が変わります</td></tr>
+          <tr><td><span class="num">2</span></td><td>寸法の図</td><td>A・B・板厚がどこの長さかを示します</td></tr>
+          <tr><td><span class="num">3</span></td><td>入力欄</td><td>A・B・板厚・比重を入れます(下にも続きます)</td></tr>
+          <tr><td><span class="num">4</span></td><td>3D の図</td><td>入れた寸法の板を立体で見せます。ドラッグで回し、ホイールで拡大・縮小します</td></tr>
+          <tr><td><span class="num">5</span></td><td>パラメータ影響グラフ</td><td>1つの値を変えると結果がどう変わるかを線で見せます</td></tr>
+          <tr><td><span class="num">6</span></td><td>結果</td><td>重量・面積・体積。それぞれの「詳細」で計算の途中が見られます</td></tr>
+          <tr><td><span class="num">7</span></td><td>詳細計算過程</td><td>計算の途中をすべて並べた頁に切り替えます</td></tr>
+          <tr><td><span class="num">8</span></td><td>印刷</td><td>計算書(A4 縦)を印刷します</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="steps">
+    <h2>計算のしかた</h2>
+    <ol class="steps">
+      <li><span class="num">1</span> の<b>材質プリセット</b>で材質を選びます。比重が自動で入ります。</li>
+      <li><span class="num">3</span> の欄に <b>A・B・板厚</b>を入れます。単位はすべて mm です。どこが A・B かは <span class="num">2</span> の図を見てください。</li>
+      <li><span class="num">6</span> の<b>結果</b>を読みます。打つたびに計算し直します。</li>
+    </ol>
+    <div class="note"><b>面積について</b>面積は板の片面(A × B)です。板厚の側面は含みません。</div>
+  </section>
+
+  <section id="input">
+    <h2>入れられる範囲</h2>
+    <div class="two">
+      <div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>欄</th><th>範囲</th><th>単位</th></tr></thead>
+            <tbody>
+              <tr><td>A</td><td>0〜3000</td><td>mm</td></tr>
+              <tr><td>B</td><td>0〜10000</td><td>mm</td></tr>
+              <tr><td>板厚</td><td>0.05〜1000</td><td>mm</td></tr>
+              <tr><td>比重</td><td>0.01〜100</td><td>g/cm³</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="warn"><b>範囲の外の値を入れたとき</b>その欄が赤くなり、下に範囲が出ます。赤い欄があるあいだは計算せず、結果・3D・グラフは前のままです。「印刷」も押せません。</div>
+      </div>
+      <figure>
+        <img src="img/plate-input-error.png" alt="板厚に 0.01 を入れて赤くなった入力欄" width="331" height="618">
+        <figcaption>板厚に 0.01 を入れたところ(範囲は 0.05〜1000)。</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="result">
+    <h2>結果と詳しい計算</h2>
+    <p>重量は小数2桁、面積は小数3桁、体積は小数1桁で出ます。</p>
+    <h3>結果のカードの「詳細」</h3>
+    <figure>
+      <img src="img/plate-modal.jpg" alt="面積計算詳細の小窓" width="1600" height="950">
+      <figcaption>面積の「詳細」を押したところ。外側をクリックするか × で閉じます。</figcaption>
+    </figure>
+    <h3>「詳細計算過程」の頁</h3>
+    <figure>
+      <img src="img/plate-details.jpg" alt="平板の詳細計算過程の頁" width="1600" height="950">
+      <figcaption>面積 → 体積 → 重量 の順に、入れた数字で計算の途中が出ます。</figcaption>
+    </figure>
+  </section>
+
+  <section id="3d">
+    <h2>3D の図</h2>
+    <div class="two">
+      <figure>
+        <img src="img/plate-3d.png" alt="3D の平板と、寸法の札" width="929" height="744">
+        <figcaption>「詳細表示」を押すと寸法の札が出ます。</figcaption>
+      </figure>
+      <div>
+        <p>操作はコイルの 3D と同じです(<a href="coil.html#3d">コイルの 3D の図</a>)。</p>
+        <p>板厚が A・B に比べてとても薄いときは、見やすいように<b>板厚を厚く描きます</b>。そのときは図の下に「(板厚は見やすいように厚く描いています)」と出ます。計算は入れた値のままです。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="chart">
+    <h2>グラフ</h2>
+    <div class="two">
+      <figure>
+        <img src="img/plate-chart.png" alt="平板のパラメータ影響グラフ" width="331" height="263">
+        <figcaption>X 軸を A、Y 軸を重量にしたところ。赤い点線が今の値です。</figcaption>
+      </figure>
+      <div>
+        <p>右上の2つの選択で、<b>X 軸</b>(A・B・板厚)と<b>Y 軸</b>(重量・面積・体積)を選びます。ほかの欄は今の値のまま、X 軸の値だけを範囲いっぱいに動かしたときの結果が線になります。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="print">
+    <h2>印刷</h2>
+    <div class="two">
+      <div>
+        <ol class="steps">
+          <li>上の「印刷」(<span class="num">8</span>)を押します。</li>
+          <li>印刷の画面でプリンタを選び、「印刷」を押します(用紙は A4 縦)。</li>
+        </ol>
+        <p>計算書には、入力した値・結果・3D の図・計算の途中・印刷した日時と版が入ります。</p>
+        <div class="warn"><b>押せないとき</b>赤い欄(範囲の外)があると印刷できません。</div>
+      </div>
+      <figure>
+        <img src="img/plate-print.jpg" alt="平板重量計算書の印刷の見た目" width="794" height="1123">
+        <figcaption>印刷される計算書。</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="formula">
+    <h2>計算式</h2>
+    <div class="formula">面積(mm²)  = A × B              面積(m²)  = 面積(mm²) / 1,000,000
+体積(mm³)  = A × B × 板厚        体積(cm³) = 体積(mm³) / 1000
+重量(g)    = 体積(cm³) × 比重     重量(kg)  = 重量(g) / 1000</div>
+  </section>
+
+  <footer>コイル・平板 重量計算ツール 操作説明書 <span data-manual-version>v1.1.0</span> ─ <a href="index.html">はじめに</a> / <a href="coil.html">コイルの使い方</a></footer>
+</main>
+</body>
+</html>

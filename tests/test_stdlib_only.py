@@ -16,7 +16,7 @@ APP_FILES = ["bridge.py", "start_app.py", "process_manager.py", *sorted(
 OWN = {"coilcalc", "start_app", "bridge", "process_manager"}
 # Python 3.10 より前には sys.stdlib_module_names が無い(そのときは使っているものだけ)
 FALLBACK = {"__future__", "argparse", "ast", "ctypes", "dataclasses", "decimal", "fcntl", "http",
-            "json", "logging", "math", "mimetypes", "msvcrt", "os", "pathlib", "re", "signal",
+            "json", "logging", "math", "mimetypes", "msvcrt", "os", "pathlib", "platform", "re", "signal",
             "socket", "socketserver", "subprocess", "sys", "threading", "time", "typing", "urllib",
             "webbrowser", "concurrent"}
 

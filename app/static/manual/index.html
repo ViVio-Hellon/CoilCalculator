@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>操作説明書 はじめに ─ コイル・平板 重量計算ツール</title>
+<link rel="stylesheet" href="manual.css">
+<script src="manual.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="top__inner">
+    <p class="top__title">コイル・平板 重量計算ツール 操作説明書</p>
+    <span class="top__version">この説明書の版: <span data-manual-version>v1.1.0</span></span>
+    <span class="live" id="live-version" hidden></span>
+    <nav class="nav" aria-label="説明書の頁">
+      <a href="index.html" aria-current="page">はじめに</a>
+      <a href="coil.html">コイル</a>
+      <a href="plate.html">平板</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h1>はじめに</h1>
+    <p class="lead">コイルの肉厚・内径・幅・比重・板厚から<b>重量・長さ・巻き数</b>を、平板の寸法 A・B と板厚・比重から<b>重量・面積・体積</b>を計算するツールです。3D の図・グラフ・計算書の印刷もできます。</p>
+    <ul class="toc">
+      <li><a href="#open">開き方</a></li>
+      <li><a href="#screen">画面のつくり</a></li>
+      <li><a href="#both">2つの版は同時に使えない</a></li>
+      <li><a href="#close">終わり方</a></li>
+      <li><a href="#version">版の見方</a></li>
+      <li><a href="#trouble">困ったとき</a></li>
+    </ul>
+  </section>
+
+  <section id="open">
+    <h2>開き方</h2>
+    <p>ふだんは<b>デスクトップ版</b>を使います。デスクトップ版が使えないときだけ、予備の<b>ブラウザ版</b>を使います。計算の中身と結果はどちらも同じです。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>版</th><th>開き方</th><th>閉じ方</th></tr></thead>
+        <tbody>
+          <tr><td><b>デスクトップ版</b>(ふだん)</td><td><code>CoilCalculator.exe</code> をダブルクリック</td><td>窓の右上の × </td></tr>
+          <tr><td>ブラウザ版(予備)</td><td><code>Start.vbs</code> をダブルクリック。既定のブラウザ(Edge など)で開きます</td><td>画面の左上の「終了」</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure>
+      <img src="img/desktop-window.jpg" alt="デスクトップ版の窓。左に入力、真ん中に 3D のコイル、右にグラフと結果が並ぶ" width="1500" height="940">
+      <figcaption>デスクトップ版の窓。開くとすぐに計算された状態で出ます。</figcaption>
+    </figure>
+    <div class="note"><b>要るもの</b>このPCに Python(3.8 以上)が入っていれば動きます。追加のインストールはありません。インターネットにつながっていなくても使えます。</div>
+  </section>
+
+  <section id="screen">
+    <h2>画面のつくり</h2>
+    <p>いちばん上の真ん中で<b>コイル</b>と<b>平板</b>を切り替えます。左上は版と操作説明書、右上は背景(ライト / ダーク)の切替です。それぞれの画面の使い方は、次の頁にあります。</p>
+    <div class="two">
+      <figure>
+        <a href="coil.html"><img src="img/coil-overview.jpg" alt="コイルの画面" width="1600" height="950"></a>
+        <figcaption><a href="coil.html">コイルの使い方</a>(重量・長さ・巻き数)</figcaption>
+      </figure>
+      <figure>
+        <a href="plate.html"><img src="img/plate-overview.jpg" alt="平板の画面" width="1600" height="950"></a>
+        <figcaption><a href="plate.html">平板の使い方</a>(重量・面積・体積)</figcaption>
+      </figure>
+    </div>
+    <p>画面の左上の「操作説明」を押すと、<b>いま見ている形状</b>(コイルか平板)の説明書が開きます。デスクトップ版では別の窓、ブラウザ版では別のタブで開きます。</p>
+    <figure>
+      <img src="img/desktop-manual.jpg" alt="デスクトップ版で「操作説明」を押して開いた、操作説明書の窓" width="1100" height="860">
+      <figcaption>デスクトップ版で「操作説明」を押したところ。説明書は別の窓で開き、計算の窓はそのまま使えます。</figcaption>
+    </figure>
+    <div class="two">
+      <figure>
+        <img src="img/coil-dark.jpg" alt="ダークにしたコイルの画面" width="1600" height="950">
+        <figcaption>右上で「ダーク」を選ぶと暗い背景になります。選んだ方はこのPCに覚えます。印刷はいつも白い紙です。</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="both">
+    <h2>2つの版は同時に使えない</h2>
+    <p>デスクトップ版とブラウザ版は、同時には動きません。<b>後から開いたほうが、理由を知らせて止まります。</b>先に開いているほうはそのまま使えます。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>先に開いている</th><th>後から開いた</th><th>どうなるか</th></tr></thead>
+        <tbody>
+          <tr><td>ブラウザ版</td><td>デスクトップ版</td><td>「ブラウザ版が動いています」と出て、デスクトップ版は開きません</td></tr>
+          <tr><td>デスクトップ版</td><td>ブラウザ版</td><td>「デスクトップ版が開いています」と出て、ブラウザ版は開きません</td></tr>
+          <tr><td>デスクトップ版</td><td>デスクトップ版</td><td>新しくは開かず、開いている窓が前に出ます</td></tr>
+          <tr><td>ブラウザ版</td><td>ブラウザ版</td><td>新しくは開かず、動いている画面がブラウザで開きます</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure class="narrow">
+      <img src="img/desktop-refused.png" alt="「ブラウザ版が動いています」の知らせ" width="720" height="230">
+      <figcaption>ブラウザ版が動いているときにデスクトップ版を開いたところ。OK を押すと閉じます(Windows では見た目が少し違います)。</figcaption>
+    </figure>
+    <div class="note"><b>デスクトップ版に切り替えたいとき</b>ブラウザ版の画面の左上の「終了」を押してから、デスクトップ版を開きます。ブラウザのタブを閉じただけのときは、1〜2分たつとブラウザ版が自分で終わるので、それから開けます。</div>
+  </section>
+
+  <section id="close">
+    <h2>終わり方</h2>
+    <div class="two">
+      <div>
+        <h3>デスクトップ版</h3>
+        <p>窓の右上の × で閉じます。計算の処理も一緒に終わります。説明書の窓が開いていても、計算の窓を閉じれば全部終わります。</p>
+        <h3>ブラウザ版</h3>
+        <p>画面の左上の「終了」を押し、確かめのメッセージで OK を押します。終わったら、ブラウザのタブを閉じてください。</p>
+        <p>止まらないときは、ツールのフォルダの <code>stop.bat</code> をダブルクリックします。</p>
+      </div>
+      <div>
+        <figure>
+          <img src="img/browser-tools.png" alt="ブラウザ版の左上。版・操作説明・終了のボタン" width="480" height="60">
+          <figcaption>ブラウザ版の左上。いちばん右が「終了」です(デスクトップ版には出ません)。</figcaption>
+        </figure>
+        <figure>
+          <img src="img/browser-quitted.png" alt="「終了しました」の画面" width="800" height="260">
+          <figcaption>終了したあとの画面。タブを閉じて構いません。</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="version">
+    <h2>版の見方</h2>
+    <p>画面の左上に、いま使っている<b>版</b>と、<b>デスクトップ版かブラウザ版か</b>が出ています。押すと詳しい中身が出ます。不具合を知らせるときは、この版を一緒に伝えてください。</p>
+    <div class="two">
+      <figure>
+        <img src="img/version-desktop.png" alt="デスクトップ版の版の詳細" width="560" height="300">
+        <figcaption>デスクトップ版。アプリ・外枠・計算の処理(Python)の版が出ます。</figcaption>
+      </figure>
+      <figure>
+        <img src="img/version-browser.png" alt="ブラウザ版の版の詳細" width="560" height="300">
+        <figcaption>ブラウザ版。どのアドレスで動いているかも出ます。</figcaption>
+      </figure>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>項目</th><th>意味</th></tr></thead>
+        <tbody>
+          <tr><td>アプリ</td><td>このツールの版です。説明書の上の「この説明書の版」と同じなら、この説明書がそのまま当てはまります</td></tr>
+          <tr><td>動き方</td><td>デスクトップ版か、ブラウザ版か</td></tr>
+          <tr><td>外枠(Rust)</td><td>デスクトップ版の窓を出している部分の版です(デスクトップ版のときだけ)</td></tr>
+          <tr><td>計算(Python)</td><td>このPCに入っている Python の版です</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>印刷した計算書のいちばん下にも、印刷したときの版が入ります。デスクトップ版の窓の題名(いちばん上の帯)にも版が出ます。</p>
+  </section>
+
+  <section id="trouble">
+    <h2>困ったとき</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>こうなった</th><th>こうする</th></tr></thead>
+        <tbody>
+          <tr><td>デスクトップ版を開くと「起動できませんでした」と出る</td><td>出ている理由と「次にすること」に従います。多いのは Python が入っていないときです(下の図)。直るまではブラウザ版も同じ理由で使えないので、担当に連絡してください</td></tr>
+          <tr><td>入力した欄が赤くなり、結果が変わらない</td><td>その欄の値が範囲の外です。欄の下に出ている範囲の中の値に直すと、すぐ計算されます(<a href="coil.html#input">コイル</a> / <a href="plate.html#input">平板</a>)</td></tr>
+          <tr><td>画面の上に赤い帯「計算の処理(Python)と繋がりません」が出る</td><td>ツールを閉じて開き直します。ブラウザ版なら <code>Start.vbs</code> をもう一度開きます</td></tr>
+          <tr><td>「印刷」が押せない</td><td>範囲の外の欄(赤い欄)があると印刷できません。直してから押してください</td></tr>
+          <tr><td>3D の図のところに「3D表示を使えません」と出る</td><td>このPCの設定で 3D の機能が止められています。計算・グラフ・印刷はそのまま使えます</td></tr>
+          <tr><td>ブラウザ版が開かない</td><td><code>start.bat</code> をダブルクリックすると、原因が黒い画面に出ます</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure>
+      <img src="img/desktop-failure.jpg" alt="「起動できませんでした」の画面。Python が見つからないことと、入れ方が書いてある" width="1500" height="940">
+      <figcaption>Python が見つからないときの画面。理由・次にすること・ログの場所が出ます。「もう一度試す」で開き直せます。</figcaption>
+    </figure>
+    <p>ログ(動作の記録)の場所: <code>%LOCALAPPDATA%\CoilCalculator\logs\coilcalc.log</code></p>
+  </section>
+
+  <footer>コイル・平板 重量計算ツール 操作説明書 <span data-manual-version>v1.1.0</span> ─ 写真は <code>scripts/make_manual_images.py</code> で撮り直せます。</footer>
+</main>
+</body>
+</html>

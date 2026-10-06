@@ -1,7 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "画面から外枠に頼めるのは Tauri の基本だけ(計算は /api/ で Python へ)",
-  "windows": ["main"],
+  "description": "画面(app:// で返すファイル)から外枠に頼めるもの。操作説明書の窓を開く(open_manual)だけ。計算は /api/ で Python へ",
+  "windows": ["main", "manual"],
+  "remote": {
+    "urls": ["http://app.localhost/*", "app://localhost/*"]
+  },
   "permissions": ["core:default"]
 }

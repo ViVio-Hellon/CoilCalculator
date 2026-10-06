@@ -1,0 +1,19 @@
+{
+  "app_id": "coil-calculator",
+  "display_name": "コイル・平板 重量計算ツール",
+  "version": "1.0.0",
+
+  "local_dir_name": "CoilCalculator",
+
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8741,
+    "port_retry": 5
+  },
+
+  "browser": {
+    "heartbeat_seconds": 10,
+    "idle_exit_seconds": 90,
+    "first_open_grace_seconds": 180
+  }
+}

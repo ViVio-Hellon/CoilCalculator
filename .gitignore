@@ -1,0 +1,16 @@
+# Python が自動生成するバイトコード
+__pycache__/
+*.py[cod]
+
+# デスクトップ版(Tauri)を作ったときにできるもの。`cargo build` で作り直せる
+src-tauri/target/
+src-tauri/gen/
+
+# GitHub Actions から取ってきて直下に置いた exe(配るときにフォルダへ入れる)
+/CoilCalculator.exe
+
+# 試験の網羅率などの作業ファイル
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/

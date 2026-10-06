@@ -1,0 +1,300 @@
+//! コイル・平板 重量計算ツール デスクトップ版の外枠
+//!
+//! 【役割の分け方】(各言語が得意なことをする)
+//!
+//! - **Rust(ここ)**: 窓・画面のファイルを返す・Python の起動と監視・多重起動の防止・
+//!   ブラウザ版との排他(後から開いたほうが止まる)
+//! - **Python(`bridge.py` → `coilcalc/`)**: 計算・入力の範囲・丸め・画面に出す文字
+//!   (ブラウザ版と同じ関数を通る。計算の正は1か所)
+//! - **JS(`app/static/`)**: 画面の操作・3D(three.js)・グラフ(Chart.js)・印刷
+//!
+//! 【ポートを使わない】
+//! 画面(WebView)は独自の宛先 `app://localhost/`(Windows では `http://app.localhost/`)を
+//! 読む。ネットワークを通らない。画面のファイルはここがディスクから返し(`static_files.rs`)、
+//! 計算(`/api/…`)だけを Python の標準入力へ渡す(`bridge.rs`)。
+
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod bridge;
+mod instance;
+mod pages;
+mod static_files;
+
+use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::Duration;
+
+use tauri::http::{Request, Response};
+use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+
+use bridge::{Bridge, Phase};
+use instance::Refusal;
+
+/// 画面の宛先の名前
+const SCHEME: &str = "app";
+const TITLE: &str = "コイル・平板 重量計算ツール";
+
+/// 終わったときの番号(ブラウザ版の `start_app.py` と同じ)
+const EXIT_OTHER_RUNNING: i32 = 3;
+
+/// 計算の要求が、Python の起動を待つ上限
+const API_START_WAIT: Duration = Duration::from_secs(60);
+
+/// 画面の宛先の頭。Windows(WebView2)は `http://<名前>.localhost`、ほかは `<名前>://localhost`
+fn origin() -> String {
+    if cfg!(windows) {
+        format!("http://{SCHEME}.localhost")
+    } else {
+        format!("{SCHEME}://localhost")
+    }
+}
+
+fn app_url(path: &str) -> tauri::Url {
+    format!("{}{}", origin(), path).parse().expect("app url")
+}
+
+fn is_app_url(url: &tauri::Url) -> bool {
+    url.as_str().starts_with(&origin())
+}
+
+/// アプリ一式のフォルダ(`bridge.py` がある所)。
+///
+/// 配るときは exe をフォルダの直下に置く。開発中は `src-tauri/target/...` から
+/// 動くので、上へたどって探す。`COIL_TOOL_ROOT` で指定もできる。
+fn app_root() -> PathBuf {
+    if let Ok(root) = std::env::var("COIL_TOOL_ROOT") {
+        if !root.trim().is_empty() {
+            return PathBuf::from(root);
+        }
+    }
+    let exe = std::env::current_exe().unwrap_or_default();
+    let mut dir = exe.parent().map(Path::to_path_buf).unwrap_or_default();
+    let start = dir.clone();
+    for _ in 0..5 {
+        if dir.join("bridge.py").is_file() {
+            return dir;
+        }
+        match dir.parent() {
+            Some(parent) => dir = parent.to_path_buf(),
+            None => break,
+        }
+    }
+    start
+}
+
+fn log_hint(root: &Path) -> String {
+    instance::local_root(root).join("logs").display().to_string()
+}
+
+fn respond(status: u16, content_type: &str, body: Vec<u8>) -> Response<Vec<u8>> {
+    Response::builder()
+        .status(status)
+        .header("Content-Type", content_type)
+        .header("Cache-Control", "no-cache")
+        .header("X-Content-Type-Options", "nosniff")
+        .body(body)
+        .unwrap()
+}
+
+fn json_error(status: u16, code: &str, message: &str) -> Response<Vec<u8>> {
+    let body = serde_json::json!({"ok": false, "error": {"code": code, "message": message}});
+    respond(status, "application/json", serde_json::to_vec(&body).unwrap())
+}
+
+/// 画面からの要求1件。`/api/…` は Python へ、ほかは画面のフォルダから返す。
+fn handle(bridge: &Bridge, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
+    let path = request.uri().path().to_string();
+    if path.starts_with("/api/") {
+        return call_python(bridge, request);
+    }
+    if request.method() != "GET" && request.method() != "HEAD" {
+        return json_error(405, "method", "この経路は読むだけです。");
+    }
+    // Python が起動できなかった / 居なくなったなら、画面の代わりに理由を出す
+    if (path == "/" || path == "/index.html") && bridge.phase() == Phase::Ended {
+        let page = pages::failure(bridge.failure().as_ref(), &bridge.python(), &bridge.stderr_tail(), &log_hint(bridge.root()));
+        return respond(503, "text/html; charset=utf-8", page.into_bytes());
+    }
+    let root = bridge.root().join("app").join("static");
+    match static_files::resolve(&root, &path) {
+        Some(file) => match std::fs::read(&file) {
+            Ok(body) => {
+                let ctype = static_files::content_type(&file);
+                let mut res = respond(200, ctype, body);
+                if ctype.starts_with("text/html") {
+                    res.headers_mut().insert("Content-Security-Policy", static_files::CSP.parse().unwrap());
+                }
+                res
+            }
+            Err(e) => json_error(500, "read", &format!("読めませんでした: {e}")),
+        },
+        None => json_error(404, "not_found", "ありません。"),
+    }
+}
+
+fn call_python(bridge: &Bridge, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
+    // 窓は Python を待たずに出す。計算の要求だけ、受け付けが始まるまで待つ
+    if bridge.phase() == Phase::Starting {
+        bridge.wait_started(API_START_WAIT);
+    }
+    if bridge.phase() != Phase::Started {
+        let reason = bridge
+            .failure()
+            .map(|f| f.message)
+            .unwrap_or_else(|| "計算の処理(Python)が動いていません。アプリを開き直してください。".into());
+        return json_error(503, "python_down", &reason);
+    }
+    let uri = request.uri().clone();
+    let headers: Vec<(String, String)> = request
+        .headers()
+        .iter()
+        .filter_map(|(k, v)| Some((k.as_str().to_string(), v.to_str().ok()?.to_string())))
+        .collect();
+    match bridge.call(request.method().as_str(), uri.path(), uri.query().unwrap_or(""), headers, request.body()) {
+        Ok(reply) => {
+            let mut builder = Response::builder().status(reply.status);
+            for (k, v) in &reply.headers {
+                // 長さと転送の方法は WebView が自分で決める
+                if k.eq_ignore_ascii_case("content-length") || k.eq_ignore_ascii_case("transfer-encoding") {
+                    continue;
+                }
+                builder = builder.header(k.as_str(), v.as_str());
+            }
+            builder.body(reply.body).unwrap_or_else(|_| json_error(500, "bad_reply", "応答を組み立てられませんでした"))
+        }
+        Err(reason) => json_error(503, "python_down", &reason),
+    }
+}
+
+/// 錠を取れなかった。**後から開いたこちらが止まる。**
+fn refuse(app: &tauri::AppHandle, refusal: Refusal) {
+    let message = match refusal {
+        // もう1つのデスクトップ版: 窓を前に出すのは single-instance の仕事。黙って終わる
+        Refusal::OtherDesktop => {
+            app.exit(0);
+            return;
+        }
+        Refusal::Browser { url } => instance::browser_running_message(&url),
+        Refusal::Unknown => "もう一方の版(ブラウザ版かデスクトップ版)が動いています。\n\n\
+                             ブラウザ版とデスクトップ版は同時に使えません。閉じてから開き直してください。"
+            .to_string(),
+    };
+    eprintln!("{message}");
+    // 試験(画面の無い所)ではダイアログを出さずに終わる
+    if std::env::var("COIL_TOOL_QUIET").as_deref() == Ok("1") {
+        app.exit(EXIT_OTHER_RUNNING);
+        return;
+    }
+    let handle = app.clone();
+    app.dialog()
+        .message(message)
+        .title(TITLE)
+        .kind(MessageDialogKind::Warning)
+        .show(move |_| handle.exit(EXIT_OTHER_RUNNING));
+}
+
+fn main() {
+    let root = app_root();
+    let runtime = instance::runtime_dir(&root);
+    let bridge = Bridge::new(root);
+
+    let for_protocol = bridge.clone();
+    let for_setup = bridge.clone();
+    let for_exit = bridge.clone();
+    let runtime_setup = runtime.clone();
+
+    let app = tauri::Builder::default()
+        // 2つ目のデスクトップ版を開こうとしたら、開いている窓を前に出すだけ
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_dialog::init())
+        .register_asynchronous_uri_scheme_protocol(SCHEME, move |_ctx, request, responder| {
+            let bridge = for_protocol.clone();
+            // 要求ごとに別のスレッドで答える(Python の起動を待つ要求が画面のファイルを止めない)
+            thread::spawn(move || responder.respond(handle(&bridge, request)));
+        })
+        .setup(move |app| {
+            // ブラウザ版・ほかのデスクトップ版と錠を取り合う。取れなければ止まる
+            // (single-instance は D-Bus の無い Linux などで素通しになるので、ここでも止める)
+            match instance::try_take(&runtime_setup) {
+                Some(lock) => {
+                    instance::write_owner(&runtime_setup);
+                    // 終わるまで握っておく(プロセスが終われば OS が外す)
+                    Box::leak(Box::new(lock));
+                }
+                None => {
+                    let owner = instance::read_owner(&runtime_setup, Duration::from_secs(2));
+                    refuse(app.handle(), instance::refusal(owner.as_ref()));
+                    return Ok(());
+                }
+            }
+
+            let handle = app.handle().clone();
+            for_setup.set_on_quit(move || handle.exit(0));
+            let handle = app.handle().clone();
+            for_setup.set_on_lost(move || {
+                // 理由の画面を出す(読み直すと `handle` が失敗の画面を返す)
+                if let Some(window) = handle.get_webview_window("main") {
+                    let _ = window.eval("location.reload()");
+                }
+            });
+
+            // Python は別スレッドで起こす。窓はすぐに出す(画面のファイルは Rust が返す)
+            let starter = for_setup.clone();
+            let handle = app.handle().clone();
+            thread::spawn(move || {
+                starter.start();
+                if starter.phase() != Phase::Started {
+                    // 起動できなかった: 理由の画面に替える
+                    if let Some(window) = handle.get_webview_window("main") {
+                        let _ = window.eval("location.reload()");
+                    }
+                }
+            });
+
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::External(app_url("/")))
+                .title(TITLE)
+                .inner_size(1500.0, 940.0)
+                .min_inner_size(1024.0, 680.0)
+                .center()
+                .on_navigation(|url| is_app_url(url))
+                .build()?;
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("アプリを組み立てられませんでした");
+
+    app.run(move |_app, event| {
+        if let RunEvent::Exit = event {
+            // 標準入力を閉じて Python に終わってもらう。終わらなければ止める
+            for_exit.shutdown(Duration::from_secs(5));
+            instance::clear_owner(&runtime);
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn 画面の宛先はosで決まる() {
+        let url = app_url("/coil/app-shell.js");
+        assert!(is_app_url(&url));
+        assert!(url.as_str().ends_with("/coil/app-shell.js"));
+        assert!(!is_app_url(&"http://127.0.0.1:8741/".parse().unwrap()));
+    }
+
+    #[test]
+    fn exeの上へたどってアプリのフォルダを探す() {
+        // 試験の exe は src-tauri/target/... にある。上に bridge.py がある
+        std::env::remove_var("COIL_TOOL_ROOT");
+        assert!(app_root().join("bridge.py").is_file(), "{}", app_root().display());
+    }
+}

@@ -1,0 +1,83 @@
+/*
+  app-shell.css — 版ごとの部品(ブラウザ版の「終了」・繋がらないときの帯・終了後の画面)
+  色は aluminum-coil-calculator.css / coil-theme.css の変数をそのまま使う(ダークも効く)
+*/
+
+/* ブラウザ版だけの「終了」(左上。右上は背景の切替) */
+.app-quit {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 5;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border: 1px solid var(--medium-gray);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--dark-gray);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.app-quit i {
+    font-size: 12px;
+}
+
+.app-quit:hover {
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+.app-quit:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+.app-quit[hidden] {
+    display: none;
+}
+
+/* 計算の処理(Python)と繋がらないときの帯。色だけでなく文で知らせる */
+.app-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2000;
+    padding: 8px 16px;
+    background: var(--accent-color);
+    color: #fff;
+    font-weight: 600;
+    text-align: center;
+}
+
+.app-banner[hidden] {
+    display: none;
+}
+
+/* 終了したあとの画面 */
+.app-quitted {
+    margin: auto;
+    padding: 32px 40px;
+    max-width: 560px;
+    background: var(--surface);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    text-align: center;
+}
+
+.app-quitted h1 {
+    font-size: 20px;
+    margin-bottom: 12px;
+}
+
+@media print {
+    .app-quit,
+    .app-banner {
+        display: none !important;
+    }
+}

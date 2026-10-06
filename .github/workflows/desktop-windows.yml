@@ -1,0 +1,73 @@
+# デスクトップ版(Windows)を作って確かめる
+#
+# 作るもの: CoilCalculator.exe(成果物 "CoilCalculator-windows" から取れる)。
+# 配るときは、アプリのフォルダの直下(bridge.py と同じ場所)に置く。
+#
+# 確かめること:
+#   - Python の試験(Windows の上で。錠・標準入出力は OS で違いが出やすい)
+#     ・元の JS との突き合わせ(node)も含む
+#   - Python 3.8 でも動く(ラインPCの Python が古いことがある)
+#   - Rust の試験
+#   - 作った exe を本当に起動し、計算が Python から返ること・ポートで待ち受けないこと・
+#     止めたら Python も終わること・ブラウザ版との排他(scripts/desktop_smoke.py)
+name: デスクトップ版(Windows)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  python-old:
+    # 追加のパッケージは入れない(ラインPCと同じ。標準ライブラリだけで通ること)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.8"
+      - name: Python 3.8 の試験
+        run: python -m unittest discover -s tests -t . -v
+
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Python の試験(pip install は要らない)
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python -m unittest discover -s tests -t . -v
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Rust の試験
+        working-directory: src-tauri
+        run: cargo test --release
+
+      - name: exe を作る
+        working-directory: src-tauri
+        run: cargo build --release
+
+      - name: 作った exe を起動して確かめる
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python scripts/desktop_smoke.py --exe src-tauri/target/release/CoilCalculator.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CoilCalculator-windows
+          path: src-tauri/target/release/CoilCalculator.exe
+          if-no-files-found: error

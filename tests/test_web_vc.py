@@ -454,6 +454,34 @@ class TableTests(VcCase):
         res = self.post("/api/vc/tables/delete", {"table": "枚数定尺", "row": added["__行"]})
         self.assertEqual(res.status_code, 409)
 
+    def test_write_reply_keeps_key_master_and_sort(self) -> None:
+        """書いたあとの答えも、読むときと同じ形(鍵が開いている・マスタの状態・並び替え)。
+
+        前は書いたあとの答えに鍵の状態が無く、画面が「見るだけ」の表示に戻っていた。
+        並び替えも既定(rowid 順)に戻っていた。
+        """
+        self.unlock()
+        body = self.browse("VC品種", sort="VC厚", dir="asc")
+        first = body["rows"][0]
+        res = self.post("/api/vc/tables/save", {"table": "VC品種", "row": first["__行"],
+                                                "values": {"備考": "並びの試験"}, "sort": "VC厚", "dir": "asc"})
+        page = res.get_json()["page"]
+        self.assertTrue(page["unlocked"])
+        self.assertEqual(page["master"]["source"], "db")
+        self.assertEqual(page["sort"], "VC厚")
+        self.assertEqual(page["rows"][0]["品種名"], first["品種名"])
+        res = self.post("/api/vc/tables/save", {"table": "VC品種", "row": first["__行"],
+                                                "values": {"VC厚": "x"}, "sort": "VC厚", "dir": "asc"})
+        self.assertEqual(res.status_code, 400)
+        self.assertTrue(res.get_json()["page"]["unlocked"])     # 断ったときも同じ形
+
+    def test_fixed_rows_say_why(self) -> None:
+        self.unlock()
+        page = self.browse("アプリ設定")
+        self.assertFalse(page["can_add"])
+        self.assertIn("足す・消すはできません", page["fixed_why"])
+        self.assertEqual(self.browse("VC品種")["fixed_why"], "")
+
     def test_tone_is_one_of_the_paper_colors(self) -> None:
         self.unlock()
         ve = self.row("早見表ブロック", 品種名="VE系")

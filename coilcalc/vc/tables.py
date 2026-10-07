@@ -97,6 +97,8 @@ class Page:
     can_add: bool = False
     can_delete: bool = False
     view_only_why: str = ""
+    #: 直せるが行を足す・消すはできない理由(アプリ設定)。**出さないのではなく、理由を出す**
+    fixed_why: str = ""
     table_note: str = ""
     query: str = ""
     sort: str = ""
@@ -194,6 +196,8 @@ def page(path: Path, table: str = "", *, query: str = "", sort: str = "",
         view.view_only_why = VIEW_ONLY_TABLES[view.table]
     view.editable = unlocked and not view.view_only_why
     view.can_add = view.can_delete = view.editable and view.table not in FIXED_ROWS
+    if view.table in FIXED_ROWS:
+        view.fixed_why = FIXED_ROWS[view.table]
     try:
         cols = columns(path, view.table)
         with source_db.open_source(path) as conn:

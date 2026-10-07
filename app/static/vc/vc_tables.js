@@ -21,6 +21,9 @@ let sortCol = "";
 let sortDir = "asc";
 let onChanged = () => {};
 let loaded = false;
+// 読み込みの番号。**後から頼んだ表を、先に頼んだ表の返事で上書きしない**
+// (面を開いた直後に表を選び替えると、2つの返事が逆の順に届くことがある)
+let asked = 0;
 
 export function start(options = {}) {
   const signal = options.signal;
@@ -61,13 +64,17 @@ function note(text, kind = "info") {
 }
 
 async function load() {
+  const mine = ++asked;
   const args = new URLSearchParams({ table: wanted, q: $("vc-tables-q").value.trim(),
                                      sort: sortCol, dir: sortDir });
   try {
-    render(await api.get(`/api/vc/tables?${args}`));
+    const body = await api.get(`/api/vc/tables?${args}`);
+    if (mine !== asked) return;                  // もっと新しい読み込みがある
+    note("");                                    // 前の表・前の操作の知らせを残さない
+    render(body);
     loaded = true;
   } catch (err) {
-    note(err.message, "error");
+    if (mine === asked) note(err.message, "error");
   }
 }
 
@@ -93,7 +100,9 @@ function render(body) {
   const pick = $("vc-tables-pick");
   pick.replaceChildren(...body.tables.map((t) => new Option(t.table, t.table)));
   pick.value = body.table;
-  $("vc-tables-note").textContent = body.view_only_why || body.table_note || "";
+  // 直せない・行を足せない理由があれば、それを先に(出さないのではなく、理由を出す)
+  $("vc-tables-note").textContent = [body.view_only_why || body.fixed_why, body.table_note]
+    .filter(Boolean).join(" ");
   $("vc-tables-more").textContent = body.note || "";
   $("vc-tables-source").textContent = body.master
     ? `${body.master.source_label || ""} ${body.master.path || ""}`.trim() : "";
@@ -257,9 +266,10 @@ function addLine(body, cols) {
 async function write(url, payload) {
   note("");
   try {
+    const mine = ++asked;
     const body = await api.post(url, { table: page.table, q: $("vc-tables-q").value.trim(),
-                                       ...payload });
-    render(body.page);
+                                       sort: sortCol, dir: sortDir, ...payload });
+    if (mine === asked) render(body.page);
     toast(body.message, "ok");
     onChanged();
   } catch (err) {

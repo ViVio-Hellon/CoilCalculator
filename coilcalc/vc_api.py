@@ -323,25 +323,31 @@ class VcApi:
     # ------------------------------------------------------------------
     # マスタの表
     # ------------------------------------------------------------------
+    def _page_body(self, table: str, *, query: str = "", sort: str = "", sort_dir: str = "asc"
+                   ) -> Dict[str, Any]:
+        """表1枚ぶんの答え。**読むときも書いたあとも同じ形**(鍵の状態・マスタの状態も入れる)。"""
+        snap = masters.current()                     # 無ければ作る(初めて開いたとき)
+        body = tables.page(masters.master_path(), table, query=query, sort=sort,
+                           sort_dir=sort_dir, unlocked=self.unlocked).to_dict()
+        body["master"] = view.master_view(snap)
+        body["unlocked"] = self.unlocked
+        return body
+
     def _tables(self, args: Dict[str, Any]) -> Reply:
         def one(key: str) -> str:
             values = args.get(key) or [""]
             return str(values[0])
 
-        snap = masters.current()                     # 無ければ作る(初めて開いたとき)
-        page = tables.page(masters.master_path(), one("table"), query=one("q"),
-                           sort=one("sort"), sort_dir=one("dir"), unlocked=self.unlocked)
-        body = page.to_dict()
-        body["master"] = view.master_view(snap)
-        body["unlocked"] = self.unlocked
-        return self._json(200, body)
+        return self._json(200, self._page_body(one("table"), query=one("q"), sort=one("sort"),
+                                               sort_dir=one("dir")))
 
     def _table_write(self, body: dict, run: Callable[[Path, str], tables.Result]) -> Reply:
         table = str(body.get("table", ""))
         masters.current()
         result = run(masters.master_path(), table)
-        page = tables.page(masters.master_path(), table, query=str(body.get("q", "")),
-                           unlocked=self.unlocked).to_dict()
+        # 書いたあとも、絞り込み・並び替えはそのまま(直した行が並びの中で動いて見えるように)
+        page = self._page_body(table, query=str(body.get("q", "")), sort=str(body.get("sort", "")),
+                               sort_dir=str(body.get("dir", "asc")))
         if result.ok:
             return self._json(200, {"ok": True, "message": result.message, "page": page})
         status = {tables.REFUSE_LOCKED: 403, tables.REFUSE_BAD_VALUE: 400,

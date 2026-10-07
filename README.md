@@ -109,6 +109,7 @@ xvfb-run python scripts/desktop_smoke.py --exe src-tauri/target/release/CoilCalc
 - `tests/test_vc_*.py`・`tests/test_web_vc.py` … 日報管理ツールの VC の試験を写したもの(VBA 互換の丸め・
   マスタの作成と移行・早見表・経路・鍵・表の編集の決まり)
 - `tests/test_vc_shared_master.py` … 共有のマスタを掴まない・差し替えに付いていく・壊れていても止まらない
+- `tests/test_vc_interop.py` … 日報管理ツールの実物のコードと同じマスタを読み書きし合う(相手のリポジトリが手元にあるときだけ。`NIPPOU_REPO`)
 - `tests/test_manual.py` … 説明書の頁・写真がそろっている・写真の大きさ・説明書の版がツールの版と同じ
 
 画面を変えたら、説明書の写真を撮り直します(作業用。node・Playwright・xdotool・ImageMagick を使う):

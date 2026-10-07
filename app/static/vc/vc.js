@@ -138,8 +138,10 @@ export function start() {
   $("vc-open-quick").addEventListener("click", () => {
     // VBA は UFquick をモードレスで開いた。計算画面と並べて見られるよう別の窓にする
     // **早見表だけの窓**(面の札も見出しも無い)。デスクトップ版は外枠に窓を頼む
+    // 版(dataset.mode)が届く前に押されても迷わないよう、外枠の口があるかで決める
+    // (__TAURI__ はデスクトップ版の窓にだけある)
     const tauri = window.__TAURI__;
-    if (document.documentElement.dataset.mode === "desktop" && tauri && tauri.core) {
+    if (tauri && tauri.core && typeof tauri.core.invoke === "function") {
       tauri.core.invoke("open_quick").catch((err) => toast(`早見表の窓を開けませんでした: ${err}`, "error"));
       return;
     }

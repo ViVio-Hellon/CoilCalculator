@@ -24,7 +24,45 @@ export class ApiError extends Error {
   }
 }
 
+/*
+  押した本人に「いま処理している」と伝え、**二度押しで同じ書き込みを2回送らない**
+  (日報管理ツールの busy.js の役目を、要るところだけ)。書く要求(POST)のとき、
+  直前に押されたボタンを返事が来るまで押せなくする。
+*/
+let pressed = null;
+let pressedAt = 0;
+document.addEventListener("click", (event) => {
+  const button = event.target.closest && event.target.closest("button");
+  if (!button) return;
+  if (button.dataset.busy === "1") {
+    // 返事を待っているボタン。押しても何もしない(押せる・押せないは画面が決めたまま触らない)
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  pressed = button;
+  pressedAt = Date.now();
+}, true);
+
+function holdPressed() {
+  const button = pressed;
+  if (!button || Date.now() - pressedAt > 1000) return () => {};
+  pressed = null;
+  button.dataset.busy = "1";
+  button.setAttribute("aria-busy", "true");
+  return () => { delete button.dataset.busy; button.removeAttribute("aria-busy"); };
+}
+
 async function request(path, options = {}) {
+  const release = options.method === "POST" ? holdPressed() : () => {};
+  try {
+    return await send(path, options);
+  } finally {
+    release();
+  }
+}
+
+async function send(path, options) {
   let res;
   try {
     res = await fetch(path, {

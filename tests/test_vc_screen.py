@@ -120,6 +120,38 @@ class SettingsAndMasterTests(unittest.TestCase):
                 self.assertIn(f'"{name[len("/api/vc/"):].rstrip("?")}"', source)
 
 
+class TablesScreenTests(unittest.TestCase):
+    """マスタの表(vc_tables.js)── 読み合わせで見つかった不具合が戻らないように。"""
+
+    JS = (STATIC / "vc" / "vc_tables.js").read_text(encoding="utf-8")
+
+    def test_stale_reply_does_not_overwrite_newer_choice(self):
+        self.assertIn("const mine = ++asked;", self.JS)
+        self.assertIn("if (mine !== asked) return;", self.JS)
+
+    def test_message_is_cleared_when_a_table_is_loaded(self):
+        load = self.JS[self.JS.index("async function load()"):self.JS.index("async function setKey")]
+        self.assertIn('note("");', load)
+
+    def test_writes_keep_the_sort(self):
+        self.assertIn("sort: sortCol, dir: sortDir, ...payload", self.JS)
+
+    def test_fixed_rows_reason_is_shown(self):
+        self.assertIn("body.fixed_why", self.JS)
+
+
+class DoublePressTests(unittest.TestCase):
+    def test_pressed_button_waits_for_the_reply(self):
+        api = (STATIC / "vc" / "api.js").read_text(encoding="utf-8")
+        self.assertIn('options.method === "POST" ? holdPressed()', api)
+        self.assertIn('button.dataset.busy === "1"', api)
+
+    def test_quick_window_does_not_depend_on_the_version_reply(self):
+        """デスクトップ版の起動直後(版の返事より前)に押しても、外枠に窓を頼む。"""
+        self.assertIn('typeof tauri.core.invoke === "function"', VC_JS)
+        self.assertNotIn('dataset.mode === "desktop" && tauri', VC_JS)
+
+
 class WiringTests(unittest.TestCase):
     def test_class_names_do_not_collide(self):
         """VC の部品は `vc-` で始める(コイル・平板の .tab / .result-card などと混ざらない)。"""

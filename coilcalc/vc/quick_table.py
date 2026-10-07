@@ -54,7 +54,7 @@ def build(snapshot: Snapshot) -> dict[str, Any]:
         problem = ""
         if block.product and block.vcatu is None:
             problem = (f"計算品種「{block.product}」が VC品種 にありません。"
-                       "設定 → マスタの表 → 早見表ブロック で直してください。")
+                       "「マスタの表」→ 早見表ブロック で直してください。")
         rows = []
         for row in block.rows:
             values = []

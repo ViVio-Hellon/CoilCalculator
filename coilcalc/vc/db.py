@@ -268,7 +268,7 @@ def record_change(conn: sqlite3.Connection, table: str, operation: str,
 
 def note_edit(path: Path, table: str, operation: str, row: Optional[int],
               before: Optional[dict[str, Any]], after: Optional[dict[str, Any]]) -> None:
-    """マスタの表を1行書いたあと(設定 → マスタの表)。**変更履歴と更新番号。**
+    """1行書いたあと(別の取引で)。**変更履歴と更新番号。**
 
     あちらは元のファイルへ1文ずつ書くので、ここは続けて1つの取引で
     「誰が・いつ・何を」を残し、更新番号を上げます。更新番号を上げないと、

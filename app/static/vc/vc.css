@@ -648,6 +648,9 @@ body{ display:flex; flex-direction:column; height:100vh; overflow:hidden; }
   border-radius:var(--r-md); box-shadow:var(--shadow-2); text-align:center; }
 .app-quitted h1{ margin-bottom:12px; }
 
+/* 返事を待っているボタン(api.js)。二度押ししても送らない */
+.btn[aria-busy="true"]{ cursor:progress; opacity:.6; }
+
 /* 早見表だけの窓(?window=quick)。見出しと面の札を出さない */
 body.is-bare .vc-top, body.is-bare #vcTabs > .tabs__bar, body.is-bare .vc-not-bare{ display:none !important; }
 

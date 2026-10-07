@@ -11,7 +11,8 @@ Flask は使いません(ラインPCの Python に追加のパッケージを入
     POST /api/coil/calc       コイルの計算 → 画面に出す文字一式
     POST /api/plate/calc      平板の計算 → 画面に出す文字一式
     POST /api/heartbeat       画面が開いている知らせ(ブラウザ版の自動終了に使う)
-    POST /api/shutdown        終了(ブラウザ版の「終了」・stop.bat)
+    POST /api/shutdown        終了。**{"confirmed": true} のときだけ止まる**。無ければ 409 で確かめの文を返す
+                              (ブラウザ版の「終了」もデスクトップ版の窓の × も、この同じ確かめを通る)
     POST /api/client-error    画面の JS のエラーを動作ログに残す
     GET  /…                   画面のファイル(ブラウザ版だけ。デスクトップ版は Rust が返す)
 
@@ -20,6 +21,7 @@ Flask は使いません(ラインPCの Python に追加のパッケージを入
          ── 打っている途中に範囲を外れるのはふつうのことなので、断りにしない
     400  本文の形が違う(JSON でない・fields が無い)
     403  よその画面からの要求(ブラウザ版の守り)
+    409  終了の確かめがまだ(画面・外枠が利用者に訊いてから confirmed を付けて送り直す)
     404  そんな経路は無い
 """
 from __future__ import annotations
@@ -41,6 +43,14 @@ log = get_logger("coilcalc.web")
 
 MODE_DESKTOP = "desktop"
 MODE_BROWSER = "browser"
+
+#: 終了の確かめ(文の正はここ1か所)。ブラウザ版の「終了」も、デスクトップ版の窓の × も、
+#: これを利用者に見せて「終了する」を選んだときだけ confirmed を付けて送り直す。
+#: 「やめる」・閉じる・答えが無い ときは送り直さない(= 止まらない)
+QUIT_CONFIRM = {
+    MODE_DESKTOP: "コイル・平板 重量計算ツールを終了しますか?\n入力した値は保存されません。",
+    MODE_BROWSER: "ブラウザ版を終了しますか?\n入力した値は保存されません。",
+}
 
 # 画面のファイルの種類。Windows はレジストリの関連付けで .js が text/plain に
 # なっていることがあり、そのままだとブラウザがスクリプトを動かさない
@@ -200,7 +210,15 @@ class App:
             self.touch()
             return json_response(200, {"ok": True})
         if path == "/api/shutdown":
-            log.info("終了の要求を受けました(%s)", self.mode)
+            if body.get("confirmed") is not True:
+                # 確かめがまだ。**止めずに**訊く文を返す(true 以外 ── "yes" や 1 も止めない)
+                return json_response(409, {
+                    "ok": False,
+                    "confirm": {"title": self.conf.get("display_name"),
+                                "message": QUIT_CONFIRM.get(self.mode, QUIT_CONFIRM[MODE_BROWSER]),
+                                "yes": "終了する", "no": "やめる"},
+                    "error": {"code": "need_confirm", "message": "終了してよいか確かめてください。"}})
+            log.info("終了の要求を受けました(%s・確かめ済み)", self.mode)
             self.request_shutdown()
             return json_response(200, {"ok": True, "message": "終了します。"})
         if path == "/api/client-error":

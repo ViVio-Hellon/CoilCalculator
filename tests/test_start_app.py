@@ -84,6 +84,50 @@ class BrowserVersionTest(unittest.TestCase):
             desktop.wait(10)
             desktop.stdout.close()
 
+    def test_starts_even_if_the_work_folder_is_broken(self):
+        """作業フォルダの runtime が壊れていても起動し、排他も一時フォルダで保つ。"""
+        (self.local / "runtime").write_text("garbage", encoding="utf-8")
+        temp = temp_local_dir()
+        self.env.update(TEMP=str(temp), TMP=str(temp))
+        server = self.start()
+        self.addCleanup(lambda: server.poll() is None and server.kill())
+        spare = temp / "CoilCalculator" / "runtime"
+        self.assertTrue(wait_for(lambda: (instance_lock.read_owner(spare, wait=0) or {}).get("url")),
+                        "一時フォルダに錠と印を置いて起動する")
+        self.assertEqual(json.loads(self.get("/api/health")[1])["mode"], "browser")
+        desktop = subprocess.run([sys.executable, "-c", (
+            "import sys; sys.path.insert(0, %r)\n"
+            "from coilcalc import app_config, instance_lock\n"
+            "print(instance_lock.take(app_config.runtime_candidates())[0])") % str(ROOT)],
+            env=self.env, capture_output=True, text=True, timeout=30)
+        self.assertEqual(desktop.stdout.strip(), instance_lock.BUSY, "後から来た版は止まる(排他は保つ)")
+        stopped = self.run_cmd(str(ROOT / "process_manager.py"))
+        self.assertEqual(stopped.returncode, 0, stopped.stdout)
+        self.assertEqual(server.wait(15), 0)
+        server.stdout.close()
+        server.stderr.close()
+
+    def test_starts_without_lock_when_no_place_is_usable(self):
+        (self.local / "runtime").write_text("garbage", encoding="utf-8")
+        bad_temp = temp_local_dir() / "not-a-folder"
+        bad_temp.write_text("x", encoding="utf-8")
+        self.env.update(TEMP=str(bad_temp), TMP=str(bad_temp))
+        server = self.start()
+        self.addCleanup(lambda: server.poll() is None and server.kill())
+        def up():
+            try:
+                return self.get("/api/health")[0] == 200
+            except OSError:
+                return False
+        self.assertTrue(wait_for(up), "どこにも錠を置けなくても、起動は止めない")
+        with OPENER.open(urllib.request.Request(f"http://127.0.0.1:{self.port}/api/shutdown",
+                         data=b'{"confirmed": true}', method="POST",
+                         headers={"Content-Type": "application/json"}), timeout=5):
+            pass
+        self.assertEqual(server.wait(15), 0)
+        server.stdout.close()
+        server.stderr.close()
+
     def test_check_only(self):
         done = self.run_cmd(str(ROOT / "start_app.py"), "--check")
         self.assertEqual(done.returncode, 0, done.stderr)

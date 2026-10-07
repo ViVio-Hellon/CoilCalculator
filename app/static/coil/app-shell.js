@@ -95,15 +95,31 @@
         document.body.replaceChildren(box);
     }
 
+    /**
+     * 「終了」。**確かめの文と「止めてよいか」の判断は Python が持つ**(デスクトップ版の
+     * 窓の × と同じ確かめ)。まず確かめ無しで頼み、409 で返ってきた文を見せ、
+     * 「OK」のときだけ confirmed を付けて送り直す。キャンセルなら何もしない。
+     */
+    async function quit() {
+        let ask;
+        try {
+            const res = await post('/api/shutdown', {});
+            if (res.ok) { quitted(); return; }             // 確かめの要らない状態(今は無い)
+            ask = (await res.json()).confirm;
+        } catch (err) {
+            quitted();                                      // もう止まっている
+            return;
+        }
+        if (!ask || !window.confirm(ask.message)) return;  // キャンセル・答え無し → 止めない
+        try { await post('/api/shutdown', { confirmed: true }); } catch (err) { /* 止まればよい */ }
+        quitted();
+    }
+
     function setupBrowser(health) {
         const button = document.getElementById('app-quit');
         if (button) {
             button.hidden = false;
-            button.addEventListener('click', async () => {
-                if (!window.confirm('ブラウザ版を終了しますか?')) return;
-                try { await post('/api/shutdown', {}); } catch (err) { /* 止まっていればそれでよい */ }
-                quitted();
-            });
+            button.addEventListener('click', quit);
         }
         const every = Math.max(3, Number(health.heartbeat_seconds) || 10) * 1000;
         const beat = () => post('/api/heartbeat', {}).then(hideBanner).catch(() => {

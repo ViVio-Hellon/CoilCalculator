@@ -141,6 +141,15 @@ def desktop_shots(exe: str, env: dict, positions: dict, local: Path) -> None:
         time.sleep(3)
         mx, my = window_origin("操作説明書")
         snap("desktop-manual.jpg", f"1100x860+{mx}+{my}")
+        # 窓の × を押したときの確かめ(答えを決めていないので、本物の確かめが出る)
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from desktop_smoke import request_close
+        if not request_close(app.pid):
+            raise RuntimeError("窓の × を送れませんでした")
+        time.sleep(2)
+        snap("desktop-close.png", "454x132+0+0")
+        if app.poll() is not None:
+            raise RuntimeError("× の確かめが出ずに終わってしまいました")
     finally:
         app.terminate()
         app.wait(15)

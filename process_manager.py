@@ -27,27 +27,24 @@ sys.path.insert(0, str(APP_ROOT))
 from coilcalc import app_config, instance_lock  # noqa: E402
 
 
-def lock_free(runtime: Path) -> bool:
-    """錠が空いているか(= どちらの版も動いていない)。"""
-    probe = instance_lock.InstanceLock(runtime)
-    if probe.acquire():
-        probe.release()
-        return True
-    return False
+def lock_free() -> bool:
+    """錠が空いているか(= どちらの版も動いていない)。置き場所の候補をすべて見る。"""
+    return instance_lock.find_busy(app_config.runtime_candidates()) is None
 
 
-def wait_free(runtime: Path, seconds: float) -> bool:
+def wait_free(seconds: float) -> bool:
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
-        if lock_free(runtime):
+        if lock_free():
             return True
         time.sleep(0.2)
-    return lock_free(runtime)
+    return lock_free()
 
 
 def ask_shutdown(url: str) -> bool:
     try:
-        req = urllib.request.Request(url.rstrip("/") + "/api/shutdown", data=b"{}", method="POST",
+        # stop.bat は「止める」と決めて実行するものなので、確かめ済みとして送る
+        req = urllib.request.Request(url.rstrip("/") + "/api/shutdown", data=b'{"confirmed": true}', method="POST",
                                      headers={"Content-Type": "application/json"})
         # 社内のプロキシを通さない(127.0.0.1 へ直接)
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -73,8 +70,8 @@ def main(argv: Optional[list] = None) -> int:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
 
-    runtime = app_config.runtime_dir()
-    if lock_free(runtime):
+    runtime = instance_lock.find_busy(app_config.runtime_candidates())
+    if runtime is None:
         print("動いていません。")
         return 0
     owner = instance_lock.read_owner(runtime) or {}
@@ -85,7 +82,7 @@ def main(argv: Optional[list] = None) -> int:
 
     if owner.get("kind") == instance_lock.KIND_BROWSER and owner.get("url"):
         print(f"{what} を止めます({owner['url']})")
-        if ask_shutdown(owner["url"]) and wait_free(runtime, 8):
+        if ask_shutdown(owner["url"]) and wait_free(8):
             print("止めました。")
             return 0
         if not args.force:
@@ -102,7 +99,7 @@ def main(argv: Optional[list] = None) -> int:
         return 1
     print(f"pid {pid} を止めます")
     kill(pid)
-    if wait_free(runtime, 8):
+    if wait_free(8):
         print("止めました。")
         return 0
     print("止められませんでした。")

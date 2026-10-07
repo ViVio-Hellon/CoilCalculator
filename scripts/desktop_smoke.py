@@ -10,6 +10,10 @@
        デスクトップ版をもう1つ開いても、新しくは起動しない(先の窓はそのまま)
     4. exe を止めると Python も終わる(取り残さない)
     5. ブラウザ版が動いている間は、デスクトップ版を開いても**デスクトップ版が止まる**(終了コード 3)
+    6. 窓の × は「終了」と同じ確かめを通る: 「やめる」なら動いたまま、「終了する」なら Python ごと終わる
+       (答えは COIL_TOOL_CLOSE_ANSWER で決める。決めないと本物の確かめが出る)
+    7. 動いている間に、アプリのフォルダの設定・画面のファイル・.py を差し替えられる(掴んだままにしない)
+    8. 作業フォルダが壊れていても起動し、ブラウザ版との排他も保つ(錠を一時フォルダに置く)
 
 使い方:
     python scripts/desktop_smoke.py --exe src-tauri/target/release/CoilCalculator.exe
@@ -21,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -106,6 +111,76 @@ def alive(pid: int) -> bool:
     return stat.rsplit(")", 1)[1].split()[0] != "Z"     # 終わって回収待ちのものは数えない
 
 
+def request_close(pid: int) -> bool:
+    """窓の × を押したのと同じ知らせを送る。送れたら True。
+
+    Windows: taskkill(/F を付けない)= WM_CLOSE。Linux: WM_DELETE_WINDOW を X に送る
+    (窓の管理をする道具の無い試験の画面でも × と同じになる。xdotool で窓を探す)。
+    """
+    if WINDOWS:
+        subprocess.run(["taskkill", "/PID", str(pid)], capture_output=True)
+        return True
+    if not shutil.which("xdotool"):
+        return False
+    ids = subprocess.run(["xdotool", "search", "--pid", str(pid), "--name", "重量計算ツール v"],
+                         capture_output=True, text=True).stdout.split()
+    return bool(ids) and all(x11_close(int(w)) for w in ids)
+
+
+def x11_close(window: int) -> bool:
+    import ctypes
+    import ctypes.util
+    name = ctypes.util.find_library("X11")
+    if not name:
+        return False
+    x = ctypes.cdll.LoadLibrary(name)
+    x.XOpenDisplay.restype = ctypes.c_void_p
+    x.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    x.XInternAtom.restype = ctypes.c_ulong
+    x.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+
+    class ClientMessage(ctypes.Structure):
+        _fields_ = [("type", ctypes.c_int), ("serial", ctypes.c_ulong), ("send_event", ctypes.c_int),
+                    ("display", ctypes.c_void_p), ("window", ctypes.c_ulong), ("message_type", ctypes.c_ulong),
+                    ("format", ctypes.c_int), ("data", ctypes.c_long * 5)]
+
+    class XEvent(ctypes.Union):
+        _fields_ = [("xclient", ClientMessage), ("pad", ctypes.c_long * 24)]
+
+    x.XSendEvent.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_long, ctypes.POINTER(XEvent)]
+    x.XFlush.argtypes = x.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    dpy = x.XOpenDisplay(None)
+    if not dpy:
+        return False
+    ev = XEvent()
+    ev.xclient.type = 33                                   # ClientMessage
+    ev.xclient.window = window
+    ev.xclient.message_type = x.XInternAtom(dpy, b"WM_PROTOCOLS", 0)
+    ev.xclient.format = 32
+    ev.xclient.data[0] = x.XInternAtom(dpy, b"WM_DELETE_WINDOW", 0)
+    sent = x.XSendEvent(dpy, window, 0, 0, ctypes.byref(ev))
+    x.XFlush(dpy)
+    x.XCloseDisplay(dpy)
+    return bool(sent)
+
+
+def swap_app_files() -> list:
+    """アプリのフォルダのファイルを、同じ中身の新しいファイルで差し替える。できなかったものを返す。"""
+    failed = []
+    for rel in ("config/app.json", "app/static/index.html", "app/static/coil/app-shell.js",
+                "app/static/vendor/three/three.min.js", "app/static/manual/img/coil-overview.jpg",
+                "bridge.py", "coilcalc/web.py", "coilcalc/calc.py"):
+        target = ROOT / rel
+        fresh = target.with_name(target.name + ".smoke")
+        shutil.copy2(target, fresh)
+        try:
+            os.replace(str(fresh), str(target))
+        except OSError as exc:
+            failed.append(f"{rel}: {exc}")
+            fresh.unlink()
+    return failed
+
+
 def log_text(work: Path) -> str:
     path = work / "local" / "logs" / "coilcalc.log"
     return path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
@@ -144,8 +219,11 @@ def main() -> int:
     args = parser.parse_args()
 
     work = Path(tempfile.mkdtemp(prefix="coil_desktop_smoke_"))
+    # 一時フォルダも試験用に分ける(作業フォルダが壊れたときの錠の予備の場所)
+    (work / "temp").mkdir()
     env = dict(os.environ, COIL_TOOL_ROOT=str(ROOT), COIL_TOOL_LOCAL_DIR=str(work / "local"),
-               COIL_TOOL_QUIET="1", PYTHONIOENCODING="utf-8")
+               COIL_TOOL_QUIET="1", COIL_TOOL_CLOSE_ANSWER="yes", PYTHONIOENCODING="utf-8",
+               TEMP=str(work / "temp"), TMP=str(work / "temp"))
     if os.environ.get("SMOKE_PYTHON"):
         env["COIL_TOOL_PYTHON"] = os.environ["SMOKE_PYTHON"]
     browser_cmd = [sys.executable, str(ROOT / "start_app.py"), "--no-browser", "--port", "18741"]
@@ -156,13 +234,25 @@ def main() -> int:
         print(("[OK] " + good) if cond else ("[NG] " + bad), flush=True)
         ok &= cond
 
+    def launch(launch_env: dict) -> tuple:
+        """exe を起動し、この起動で最初の計算が返るまで待つ。(プロセス, 返ったか)"""
+        since = len(log_text(work))
+        proc = subprocess.Popen([args.exe], env=launch_env, cwd=str(ROOT))
+        ready = wait_for(lambda: "最初の計算を返しました: coil (desktop)" in log_text(work)[since:]
+                         or proc.poll() is not None, args.timeout, 0.5)
+        return proc, ready and proc.poll() is None
+
+    def force_stop(proc: subprocess.Popen) -> None:
+        if WINDOWS:
+            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
+        else:
+            proc.kill()
+        proc.wait(15)
+
     # ---- 1〜4: デスクトップ版を開く -------------------------------------------
     started = time.monotonic()
-    app = subprocess.Popen([args.exe], env=env, cwd=str(ROOT))
+    app, seen = launch(env)
     print(f"起動しました: pid={app.pid} 作業={work}", flush=True)
-    seen = wait_for(lambda: "最初の計算を返しました: coil (desktop)" in log_text(work)
-                    or app.poll() is not None, args.timeout, 0.5)
-    seen = seen and app.poll() is None
     check(seen, f"計算が Python から返ってきました({time.monotonic() - started:.1f}秒)",
           f"時間内に計算が返りませんでした(exe の終了コード {app.poll()})。ログ:\n{log_text(work)[-3000:]}")
 
@@ -183,10 +273,56 @@ def main() -> int:
           "デスクトップ版をもう1つ開いても、新しくは起動しませんでした(先の窓はそのまま)",
           f"2つ目のデスクトップ版の終わり方が違います(終了コード {twin.returncode}、先の exe {app.poll()})")
 
+    # 7. 掴んだままにしない(Windows では、開いたままのファイルは差し替えられない)
+    failed = swap_app_files()
+    check(not failed, "動いている間に、設定・画面のファイル・.py を差し替えられました(掴んだままにしていない)",
+          f"差し替えられないファイルがあります(掴んだまま): {failed}")
+
+    # 6. 窓の ×(「終了する」と答える)
+    if request_close(app.pid):
+        try:
+            app.wait(20)
+        except subprocess.TimeoutExpired:
+            pass
+        check(app.poll() is not None, "窓の × →「終了する」で、デスクトップ版が終わりました",
+              "窓の × →「終了する」でも終わりません")
+    else:
+        print("[--] この画面では × を送れないので、止めて確かめます(xdotool が無い)", flush=True)
     stop(app)
     gone = wait_for(lambda: not any(alive(p) for p in kids), 15)
-    check(gone, "exe を止めたら Python も終わりました",
+    check(gone, "exe が終わったら Python も終わりました",
           f"取り残されたプロセスがあります: {[p for p in kids if alive(p)]}")
+
+    # 6. 窓の ×(「やめる」と答える)→ 動いたまま
+    hold, ready = launch(dict(env, COIL_TOOL_CLOSE_ANSWER="no"))
+    check(ready, "もう一度起動しました(「やめる」の確かめ用)", "もう一度起動できませんでした")
+    if ready and request_close(hold.pid):
+        time.sleep(4)
+        hold_kids = [p for p in children(hold.pid) if alive(p)]
+        check(hold.poll() is None and bool(hold_kids),
+              "窓の × →「やめる」で、デスクトップ版も Python も動いたままでした(勝手に「はい」にならない)",
+              f"「やめる」なのに終わりました(exe {hold.poll()}、Python {hold_kids})")
+    force_stop(hold)
+
+    # 8. 作業フォルダが壊れている(runtime がフォルダでなくファイル)
+    broken = work / "broken"
+    (broken / "local").mkdir(parents=True)
+    (broken / "local" / "runtime").write_text("garbage", encoding="utf-8")
+    broken_env = dict(env, COIL_TOOL_LOCAL_DIR=str(broken / "local"))
+    since_work = work
+    work = broken                                # ログはこちらの作業フォルダ(broken/local/logs)に出る
+    damaged, ready = launch(broken_env)
+    check(ready, "作業フォルダが壊れていても、デスクトップ版は起動して計算が返りました",
+          f"作業フォルダが壊れていると起動しません(終了コード {damaged.poll()})")
+    spare = Path(broken_env["TEMP"]) / "CoilCalculator" / "runtime" / "instance.json"
+    check(spare.exists(), "錠と持ち主の印を一時フォルダに置きました", f"一時フォルダに印がありません: {spare}")
+    refused = subprocess.run(browser_cmd, env=broken_env, cwd=str(ROOT), capture_output=True, text=True,
+                             encoding="utf-8", errors="replace", timeout=60)
+    check(refused.returncode == EXIT_OTHER_RUNNING,
+          "作業フォルダが壊れていても、ブラウザ版との排他は保たれました",
+          f"作業フォルダが壊れているとブラウザ版が止まりません(終了コード {refused.returncode})")
+    stop(damaged)
+    work = since_work
 
     # ---- 5: ブラウザ版が先に動いているとき -------------------------------------
     browser = subprocess.Popen(browser_cmd, env=env, cwd=str(ROOT),

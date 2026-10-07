@@ -76,9 +76,16 @@ class BridgeTest(unittest.TestCase):
         self.b.proc.stdin.close()
         self.assertEqual(self.b.proc.wait(10), 0, self.b.proc.stderr.read().decode("utf-8", "replace"))
 
-    def test_shutdown_sends_quit(self):
+    def test_shutdown_needs_confirmation_then_sends_quit(self):
         self.b.read()
+        # 確かめ無し(窓の × を押しただけ): 止めずに確かめの文を返す
         self.b.send("POST", "/api/shutdown", {})
+        head, body = self.b.read()
+        self.assertEqual(head["status"], 409)
+        self.assertIn("終了しますか", json.loads(body)["confirm"]["message"])
+        self.assertIsNone(self.b.proc.poll(), "確かめ無しでは止まらない")
+        # 「終了する」を選んだ
+        self.b.send("POST", "/api/shutdown", {"confirmed": True})
         heads = [self.b.read()[0], self.b.read()[0]]
         self.assertIn("quit", [h.get("event") for h in heads])
         # 外枠は「quit」を受けて標準入力を閉じる

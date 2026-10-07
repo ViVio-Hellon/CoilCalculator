@@ -81,6 +81,65 @@ class LockTest(unittest.TestCase):
         self.assertEqual(instance_lock.read_owner(self.runtime, wait=0)["pid"], -1)
 
 
+class BrokenPlaceTest(unittest.TestCase):
+    """作業フォルダが壊れていても、起動ごと止まらない(Windows の CI でも流す)。"""
+
+    def setUp(self):
+        self.base = temp_local_dir()
+
+    def test_broken_place_is_unusable_not_busy(self):
+        broken = self.base / "runtime"
+        broken.write_text("garbage", encoding="utf-8")          # フォルダのはずがファイル
+        self.assertEqual(instance_lock.InstanceLock(broken).acquire_status(), instance_lock.UNUSABLE)
+        lockdir = self.base / "lockdir"
+        (lockdir / instance_lock.LOCK_NAME).mkdir(parents=True)  # 錠のファイルがフォルダになっている
+        self.assertEqual(instance_lock.InstanceLock(lockdir).acquire_status(), instance_lock.UNUSABLE)
+
+    def test_take_falls_back_and_still_excludes(self):
+        broken = self.base / "runtime"
+        broken.write_text("garbage", encoding="utf-8")
+        spare = self.base / "spare"
+        status, lock, place = instance_lock.take([broken, spare])
+        self.assertEqual((status, place), (instance_lock.ACQUIRED, spare))
+        try:
+            child = subprocess.run([sys.executable, "-c", textwrap.dedent(f"""
+                import sys; sys.path.insert(0, {str(ROOT)!r})
+                from pathlib import Path
+                from coilcalc import instance_lock
+                print(instance_lock.take([Path({str(broken)!r}), Path({str(spare)!r})])[0])
+            """)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(child.stdout.strip(), instance_lock.BUSY, "予備の場所でも排他は効く")
+            self.assertEqual(instance_lock.find_busy([broken, spare]), spare)
+        finally:
+            lock.release()
+        self.assertIsNone(instance_lock.find_busy([broken, spare]))
+
+    def test_nothing_usable_means_run_without_lock(self):
+        a, b = self.base / "a", self.base / "b"
+        a.write_text("x", encoding="utf-8")
+        b.write_text("x", encoding="utf-8")
+        self.assertEqual(instance_lock.take([a, b]), (instance_lock.UNUSABLE, None, None))
+
+    def test_owner_note_that_cannot_be_written_does_not_stop(self):
+        place = self.base / "runtime"
+        (place / instance_lock.OWNER_NAME).mkdir(parents=True)   # 印がフォルダになっている
+        lock = instance_lock.InstanceLock(place)
+        self.assertTrue(lock.acquire())
+        with self.assertLogs("coilcalc.instance_lock", "WARNING"):
+            self.assertFalse(lock.write_owner(instance_lock.KIND_BROWSER, url="x"))
+        lock.release()
+
+    def test_garbage_owner_note_is_ignored(self):
+        place = self.base / "runtime"
+        place.mkdir()
+        (place / instance_lock.OWNER_NAME).write_bytes(b"\x00\xffnot json")
+        self.assertIsNone(instance_lock.read_owner(place, wait=0))
+        lock = instance_lock.InstanceLock(place)
+        self.assertTrue(lock.acquire())
+        self.assertTrue(lock.write_owner(instance_lock.KIND_BROWSER, url="x"), "壊れた印は上書きする")
+        lock.release()
+
+
 class SameRulesAsRustTest(unittest.TestCase):
     """Rust 側(instance.rs)と、ファイル名・作業フォルダの決め方が同じか。"""
 
@@ -106,6 +165,19 @@ class SameRulesAsRustTest(unittest.TestCase):
             self.assertEqual(app_config.local_root(conf), Path("/X") / "コイルテスト")
         with mock.patch.dict(os.environ, {"COIL_TOOL_LOCAL_DIR": " /D "}):
             self.assertEqual(app_config.local_root(conf), Path("/D"))
+
+    def test_candidates_order(self):
+        # Rust: 作業フォルダ/runtime → 一時フォルダ(TEMP → TMP → OS の既定)/<名前>/runtime
+        self.assertIn('vec![runtime_dir(app_root), temp_root().join(local_root_name(app_root)).join("runtime")]', RUST)
+        self.assertIn('for var in ["TEMP", "TMP"]', RUST)
+        self.assertIn("std::env::temp_dir()", RUST)
+        self.assertIn("Err(TryLockError::WouldBlock) => Attempt::Busy", RUST, "握られている ≠ 使えない")
+        conf = {"local_dir_name": "コイルテスト"}
+        with mock.patch.dict(os.environ, {"COIL_TOOL_LOCAL_DIR": "/D", "TEMP": "/T1", "TMP": "/T2"}):
+            self.assertEqual(app_config.runtime_candidates(conf),
+                             [Path("/D") / "runtime", Path("/T1") / "コイルテスト" / "runtime"])
+        with mock.patch.dict(os.environ, {"COIL_TOOL_LOCAL_DIR": "/D", "TEMP": "", "TMP": "/T2"}):
+            self.assertEqual(app_config.runtime_candidates(conf)[1], Path("/T2") / "コイルテスト" / "runtime")
 
     def test_exit_code_for_refusal_is_the_same(self):
         import start_app

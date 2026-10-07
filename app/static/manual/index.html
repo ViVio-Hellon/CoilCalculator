@@ -11,7 +11,7 @@
 <header class="top">
   <div class="top__inner">
     <p class="top__title">コイル・平板 重量計算ツール 操作説明書</p>
-    <span class="top__version">この説明書の版: <span data-manual-version>v1.1.0</span></span>
+    <span class="top__version">この説明書の版: <span data-manual-version>v1.2.0</span></span>
     <span class="live" id="live-version" hidden></span>
     <nav class="nav" aria-label="説明書の頁">
       <a href="index.html" aria-current="page">はじめに</a>
@@ -42,8 +42,8 @@
       <table>
         <thead><tr><th>版</th><th>開き方</th><th>閉じ方</th></tr></thead>
         <tbody>
-          <tr><td><b>デスクトップ版</b>(ふだん)</td><td><code>CoilCalculator.exe</code> をダブルクリック</td><td>窓の右上の × </td></tr>
-          <tr><td>ブラウザ版(予備)</td><td><code>Start.vbs</code> をダブルクリック。既定のブラウザ(Edge など)で開きます</td><td>画面の左上の「終了」</td></tr>
+          <tr><td><b>デスクトップ版</b>(ふだん)</td><td><code>CoilCalculator.exe</code> をダブルクリック</td><td>窓の右上の × →「終了する」</td></tr>
+          <tr><td>ブラウザ版(予備)</td><td><code>Start.vbs</code> をダブルクリック。既定のブラウザ(Edge など)で開きます</td><td>画面の左上の「終了」→ OK</td></tr>
         </tbody>
       </table>
     </div>
@@ -106,9 +106,14 @@
     <div class="two">
       <div>
         <h3>デスクトップ版</h3>
-        <p>窓の右上の × で閉じます。計算の処理も一緒に終わります。説明書の窓が開いていても、計算の窓を閉じれば全部終わります。</p>
+        <p>窓の右上の × を押すと、「終了しますか?」と確かめが出ます。<b>「終了する」</b>を押すと閉じます(計算の処理も一緒に終わります)。<b>「やめる」</b>を押すと、そのまま使い続けられます。</p>
+        <figure>
+          <img src="img/desktop-close.png" alt="窓の × を押したときの確かめ。「終了する」と「やめる」のボタン" width="454" height="132">
+          <figcaption>窓の × を押したときの確かめ(Windows では見た目が少し違います)。ブラウザ版の「終了」と同じ確かめです。</figcaption>
+        </figure>
+        <p>説明書の窓が開いていても、計算の窓を閉じれば全部終わります。説明書の窓の × は、確かめずに説明書の窓だけを閉じます。</p>
         <h3>ブラウザ版</h3>
-        <p>画面の左上の「終了」を押し、確かめのメッセージで OK を押します。終わったら、ブラウザのタブを閉じてください。</p>
+        <p>画面の左上の「終了」を押し、「ブラウザ版を終了しますか?」で OK を押します。キャンセルなら、そのまま使い続けられます。終わったら、ブラウザのタブを閉じてください。</p>
         <p>止まらないときは、ツールのフォルダの <code>stop.bat</code> をダブルクリックします。</p>
       </div>
       <div>
@@ -173,7 +178,7 @@
     <p>ログ(動作の記録)の場所: <code>%LOCALAPPDATA%\CoilCalculator\logs\coilcalc.log</code></p>
   </section>
 
-  <footer>コイル・平板 重量計算ツール 操作説明書 <span data-manual-version>v1.1.0</span> ─ 写真は <code>scripts/make_manual_images.py</code> で撮り直せます。</footer>
+  <footer>コイル・平板 重量計算ツール 操作説明書 <span data-manual-version>v1.2.0</span> ─ 写真は <code>scripts/make_manual_images.py</code> で撮り直せます。</footer>
 </main>
 </body>
 </html>

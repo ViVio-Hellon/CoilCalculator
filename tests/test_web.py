@@ -54,11 +54,35 @@ class DesktopModeTest(unittest.TestCase):
         self.assertEqual(self.app.handle(req("GET", "/api/nothing")).status, 404)
         self.assertEqual(self.app.handle(req("POST", "/api/nothing", {})).status, 404)
 
-    def test_shutdown_calls_back_once(self):
-        res = self.app.handle(req("POST", "/api/shutdown", {}))
+    def test_shutdown_never_stops_without_a_real_yes(self):
+        """「終了」の確かめが、いつの間にか「はい」になっていないか。
+
+        確かめ無し・「やめる」相当・true 以外の値では**止まらない**。止まるのは
+        画面か外枠が利用者に訊いて「終了する」を選び、confirmed: true を付けたときだけ。
+        """
+        for body in ({}, {"confirmed": False}, {"confirmed": "yes"}, {"confirmed": 1},
+                     {"confirmed": "true"}, {"force": True}, None):
+            with self.subTest(body=body):
+                res = self.app.handle(req("POST", "/api/shutdown", body))
+                self.assertEqual(res.status, 409)
+                ask = payload(res)["confirm"]
+                self.assertEqual(ask["message"], web.QUIT_CONFIRM[web.MODE_DESKTOP])
+                self.assertEqual((ask["yes"], ask["no"]), ("終了する", "やめる"))
+        self.assertFalse(self.stopped.wait(0.5), "確かめ無しで止まってはいけない")
+        self.assertFalse(self.app.stopping)
+
+    def test_shutdown_after_confirmation_calls_back_once(self):
+        res = self.app.handle(req("POST", "/api/shutdown", {"confirmed": True}))
         self.assertEqual(res.status, 200)
         self.assertTrue(self.stopped.wait(2))
         self.assertTrue(self.app.stopping)
+
+    def test_browser_and_desktop_ask_with_their_own_words_from_one_place(self):
+        browser = web.App(web.MODE_BROWSER, allowed_hosts=HOSTS)
+        res = browser.handle(req("POST", "/api/shutdown", {}))
+        self.assertEqual(res.status, 409)
+        self.assertEqual(payload(res)["confirm"]["message"], web.QUIT_CONFIRM[web.MODE_BROWSER])
+        self.assertFalse(browser.stopping)
 
     def test_static_files_stay_inside(self):
         res = self.app.handle(req("GET", "/"))
@@ -101,10 +125,10 @@ class BrowserGuardTest(unittest.TestCase):
         self.assertEqual(self.app.handle(req("GET", "/", host="evil.example:8741")).status, 403)
 
     def test_foreign_origin_and_non_json_are_refused(self):
-        res = self.app.handle(req("POST", "/api/shutdown", {}, origin="http://evil.example"))
+        res = self.app.handle(req("POST", "/api/shutdown", {"confirmed": True}, origin="http://evil.example"))
         self.assertEqual(res.status, 403)
         self.assertFalse(self.app.stopping)
-        plain = req("POST", "/api/shutdown", {})
+        plain = req("POST", "/api/shutdown", {"confirmed": True})
         plain.headers["content-type"] = "text/plain"
         self.assertEqual(self.app.handle(plain).status, 400)
         self.assertFalse(self.app.stopping)

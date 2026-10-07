@@ -9,6 +9,7 @@
 【ブラウザ版とデスクトップ版は同時に動かない】(`coilcalc/instance_lock.py`)
     デスクトップ版が開いていたら、ここは「デスクトップ版が開いています」と出して終わる。
     ブラウザ版が先に動いていたら、新しく起動せずにその画面をブラウザで開く。
+    作業フォルダが壊れていても止めない(錠を一時フォルダに置く。そこも駄目なら排他無しで動く)。
 
 【終わり方】
     - 画面の「終了」/ stop.bat
@@ -181,10 +182,15 @@ def other_running(runtime: Path, *, open_browser: bool) -> int:
 
 def serve(*, open_browser: bool = True, port: Optional[int] = None) -> int:
     conf = app_config.load()
-    runtime = app_config.runtime_dir(conf)
-    lock = instance_lock.InstanceLock(runtime)
-    if not lock.acquire():
-        return other_running(runtime, open_browser=open_browser)
+    status, lock, place = instance_lock.take(app_config.runtime_candidates(conf))
+    if status == instance_lock.BUSY:
+        return other_running(place, open_browser=open_browser)
+    if status == instance_lock.UNUSABLE:
+        # 作業フォルダも一時フォルダも使えない。**起動は止めない**(計算だけの道具で、
+        # 2つ動いても壊れるデータが無い)。デスクトップ版との排他だけが効かない
+        log.warning("錠を置ける場所がありません。デスクトップ版との排他無しで起動します")
+    elif place != app_config.runtime_dir(conf):
+        log.warning("作業フォルダが使えないので、錠を一時フォルダに置きました: %s", place)
 
     server = None
     try:
@@ -197,8 +203,9 @@ def serve(*, open_browser: bool = True, port: Optional[int] = None) -> int:
         stopped = threading.Event()
         app = web.App(web.MODE_BROWSER, on_shutdown=stopped.set, allowed_hosts=hosts)
         Handler.app = app
-        lock.write_owner(instance_lock.KIND_BROWSER, url=url, port=bound,
-                         version=conf.get("version"))
+        if lock is not None:
+            lock.write_owner(instance_lock.KIND_BROWSER, url=url, port=bound,
+                             version=conf.get("version"))
         thread = threading.Thread(target=server.serve_forever, name="http", daemon=True)
         thread.start()
         log.info("ブラウザ版 %s を始めました: %s", conf.get("version"), url)
@@ -212,7 +219,8 @@ def serve(*, open_browser: bool = True, port: Optional[int] = None) -> int:
         if server is not None:
             server.shutdown()
             server.server_close()
-        lock.release()
+        if lock is not None:
+            lock.release()
 
 
 def watch_idle(app: web.App, stopped: threading.Event, browser: dict) -> None:

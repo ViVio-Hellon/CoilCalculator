@@ -3,7 +3,7 @@
 //! 【役割の分け方】(各言語が得意なことをする)
 //!
 //! - **Rust(ここ)**: 窓・画面のファイルを返す・Python の起動と監視・多重起動の防止・
-//!   ブラウザ版との排他(後から開いたほうが止まる)
+//!   ブラウザ版との排他(後から開いたほうが止まる)・窓の × の確かめ(文と判断は Python)
 //! - **Python(`bridge.py` → `coilcalc/`)**: 計算・入力の範囲・丸め・画面に出す文字
 //!   (ブラウザ版と同じ関数を通る。計算の正は1か所)
 //! - **JS(`app/static/`)**: 画面の操作・3D(three.js)・グラフ(Chart.js)・印刷
@@ -21,15 +21,17 @@ mod pages;
 mod static_files;
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
 use tauri::http::{Request, Response};
 use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
-use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
 use bridge::{Bridge, Phase};
-use instance::Refusal;
+use instance::{Refusal, Take};
 
 /// 画面の宛先の名前
 const SCHEME: &str = "app";
@@ -223,15 +225,85 @@ fn refuse(app: &tauri::AppHandle, refusal: Refusal) {
         .show(move |_| handle.exit(EXIT_OTHER_RUNNING));
 }
 
+// ------------------------------------------------------------------
+// 終わり方(窓の ×)
+// ------------------------------------------------------------------
+/// いま確かめを出しているか(× を続けて押しても、確かめは1つだけ)
+static CLOSING: AtomicBool = AtomicBool::new(false);
+
+/// 試験(画面の無い所)用に、確かめの答えを決めておく: `COIL_TOOL_CLOSE_ANSWER=yes|no`。
+/// **決めていなければ必ず利用者に訊く**(黙って「はい」にしない)
+fn preset_answer() -> Option<bool> {
+    match std::env::var("COIL_TOOL_CLOSE_ANSWER").as_deref() {
+        Ok("yes") => Some(true),
+        Ok("no") => Some(false),
+        _ => None,
+    }
+}
+
+/// いちばん大きい窓の × を押した。**ブラウザ版の「終了」と同じ確かめを通る**:
+/// Python に確かめ無しで頼み(`/api/shutdown`)、409 で返ってきた文を見せ、
+/// 「終了する」のときだけ `{"confirmed": true}` を付けて送り直す。「やめる」なら何もしない。
+/// Python が動いていない(起動できなかった・落ちた)ときは、訊く相手がいないのでそのまま閉じる。
+fn confirm_close(app: AppHandle, bridge: Arc<Bridge>) {
+    if CLOSING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    thread::spawn(move || {
+        if bridge.phase() != Phase::Started {
+            app.exit(0);
+            return;
+        }
+        let json = vec![("Content-Type".to_string(), "application/json".to_string())];
+        match bridge.call("POST", "/api/shutdown", "", json.clone(), b"{}") {
+            Ok(reply) if reply.status == 409 => {
+                let body = serde_json::from_slice::<serde_json::Value>(&reply.body).unwrap_or_default();
+                let text = |key: &str, default: &str| {
+                    body["confirm"][key].as_str().filter(|t| !t.is_empty()).unwrap_or(default).to_string()
+                };
+                let yes = preset_answer().unwrap_or_else(|| {
+                    app.dialog()
+                        .message(text("message", "終了しますか?"))
+                        .title(text("title", TITLE))
+                        .kind(MessageDialogKind::Warning)
+                        .buttons(MessageDialogButtons::OkCancelCustom(text("yes", "終了する"), text("no", "やめる")))
+                        .blocking_show()
+                });
+                if yes {
+                    // Python が「quit」を知らせてくる(→ on_quit で終わる)。来なくても少し待って終える
+                    let _ = bridge.call("POST", "/api/shutdown", "", json, br#"{"confirmed": true}"#);
+                    exit_soon(app);
+                } else {
+                    CLOSING.store(false, Ordering::SeqCst);
+                }
+            }
+            // 確かめの要らない状態(今は無い)
+            Ok(reply) if reply.status < 300 => exit_soon(app),
+            // Python が答えない: 訊けないので閉じる
+            _ => app.exit(0),
+        }
+    });
+}
+
+fn exit_soon(app: AppHandle) {
+    thread::spawn(move || {
+        thread::sleep(Duration::from_millis(1500));
+        app.exit(0);
+    });
+}
+
 fn main() {
     let root = app_root();
-    let runtime = instance::runtime_dir(&root);
+    let candidates = instance::runtime_candidates(&root);
     let bridge = Bridge::new(root);
 
     let for_protocol = bridge.clone();
     let for_setup = bridge.clone();
+    let for_close = bridge.clone();
     let for_exit = bridge.clone();
-    let runtime_setup = runtime.clone();
+    // 錠を取れた場所(終わるときに持ち主の印を消す)
+    let held: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(None));
+    let held_setup = held.clone();
 
     let app = tauri::Builder::default()
         // 2つ目のデスクトップ版を開こうとしたら、開いている窓を前に出すだけ
@@ -244,11 +316,20 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![open_manual])
-        .on_window_event(|window, event| {
-            // いちばん大きい窓を閉じたら終わる(操作説明書の窓だけが残って、
-            // Python と錠を握ったままにならないように)
-            if window.label() == "main" && matches!(event, WindowEvent::Destroyed) {
-                window.app_handle().exit(0);
+        .on_window_event(move |window, event| {
+            if window.label() != "main" {
+                return; // 操作説明書の窓は、確かめずにその窓だけ閉じる
+            }
+            match event {
+                // × は「終了」と同じ確かめを通る
+                WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    confirm_close(window.app_handle().clone(), for_close.clone());
+                }
+                // いちばん大きい窓が無くなったら終わる(操作説明書の窓だけが残って、
+                // Python と錠を握ったままにならないように)
+                WindowEvent::Destroyed => window.app_handle().exit(0),
+                _ => {}
             }
         })
         .register_asynchronous_uri_scheme_protocol(SCHEME, move |_ctx, request, responder| {
@@ -257,18 +338,26 @@ fn main() {
             thread::spawn(move || responder.respond(handle(&bridge, request)));
         })
         .setup(move |app| {
-            // ブラウザ版・ほかのデスクトップ版と錠を取り合う。取れなければ止まる
-            // (single-instance は D-Bus の無い Linux などで素通しになるので、ここでも止める)
-            match instance::try_take(&runtime_setup) {
-                Some(lock) => {
-                    instance::write_owner(&runtime_setup);
+            // ブラウザ版・ほかのデスクトップ版と錠を取り合う。握られていれば止まる
+            // (single-instance は D-Bus の無い Linux などで素通しになるので、ここでも止める)。
+            // 作業フォルダが壊れていても止めない: 一時フォルダで取り合い、そこも駄目なら排他無しで動く
+            match instance::take(&candidates) {
+                Take::Acquired(lock, place) => {
+                    if Some(&place) != candidates.first() {
+                        eprintln!("作業フォルダが使えないので、錠を一時フォルダに置きました: {}", place.display());
+                    }
+                    instance::write_owner(&place);
+                    *held_setup.lock().unwrap() = Some(place);
                     // 終わるまで握っておく(プロセスが終われば OS が外す)
                     Box::leak(Box::new(lock));
                 }
-                None => {
-                    let owner = instance::read_owner(&runtime_setup, Duration::from_secs(2));
+                Take::Busy(place) => {
+                    let owner = instance::read_owner(&place, Duration::from_secs(2));
                     refuse(app.handle(), instance::refusal(owner.as_ref()));
                     return Ok(());
+                }
+                Take::Unusable(reasons) => {
+                    eprintln!("錠を置ける場所がありません。ブラウザ版との排他無しで起動します: {}", reasons.join(" / "));
                 }
             }
 
@@ -311,7 +400,9 @@ fn main() {
         if let RunEvent::Exit = event {
             // 標準入力を閉じて Python に終わってもらう。終わらなければ止める
             for_exit.shutdown(Duration::from_secs(5));
-            instance::clear_owner(&runtime);
+            if let Some(place) = held.lock().unwrap().as_ref() {
+                instance::clear_owner(place);
+            }
         }
     });
 }

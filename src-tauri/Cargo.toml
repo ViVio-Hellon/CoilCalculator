@@ -3,7 +3,7 @@
 # 多重起動の防止・ブラウザ版との排他。詳しくは docs/デスクトップ版.md
 [package]
 name = "coil-calculator-desktop"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 # File::try_lock(ブラウザ版との排他)を使うので 1.89 以上
 rust-version = "1.89"

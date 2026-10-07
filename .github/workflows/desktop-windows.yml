@@ -10,6 +10,9 @@
 #   - Rust の試験
 #   - 作った exe を本当に起動し、計算が Python から返ること・ポートで待ち受けないこと・
 #     止めたら Python も終わること・ブラウザ版との排他(scripts/desktop_smoke.py)
+#   - start.bat / stop.bat / Start.vbs を本当に動かす(tests/test_launch_windows.py)
+#   - 配布フォルダ(scripts/make_dist.py)を exe 入りで作り、その start.bat --check が通る
+#     → 成果物 "CoilCalculator-dist"(そのまま配れるフォルダ)
 name: デスクトップ版(Windows)
 
 on:
@@ -70,4 +73,25 @@ jobs:
         with:
           name: CoilCalculator-windows
           path: src-tauri/target/release/CoilCalculator.exe
+          if-no-files-found: error
+
+      # 配布フォルダ(scripts/make_dist.py)を、いま作った exe 入りで作る。
+      # できたフォルダの start.bat --check が通ることまで確かめる
+      - name: 配布フォルダを作る
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python scripts/make_dist.py --out "${{ runner.temp }}/CoilCalculator-dist" --exe src-tauri/target/release/CoilCalculator.exe
+
+      - name: 配布フォルダの start.bat で確かめる
+        shell: cmd
+        env:
+          COIL_TOOL_LOCAL_DIR: ${{ runner.temp }}\dist-check
+        run: |
+          cd /d "${{ runner.temp }}\CoilCalculator-dist"
+          call start.bat --check < nul
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CoilCalculator-dist
+          path: ${{ runner.temp }}/CoilCalculator-dist
           if-no-files-found: error

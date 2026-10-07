@@ -16,7 +16,7 @@ from tests._helpers import ROOT
 
 BATCH_FILES = ("start.bat", "stop.bat")
 VBS_FILES = ("Start.vbs",)
-MARKER = "コイル・平板 重量計算ツール"
+MARKER = "VC長さ・コイル平板 計算ツール"
 
 
 class LaunchFilesTest(unittest.TestCase):
@@ -40,6 +40,38 @@ class LaunchFilesTest(unittest.TestCase):
                 data = self.read(name)
                 first = next(i for i, b in enumerate(data) if b >= 0x80)
                 self.assertIn(b"chcp 932", data[:first])
+
+    def test_no_bare_close_paren_inside_blocks(self):
+        """`if … (` 〜 `)` の塊の中で、行の途中に半角の `)` を書かない。
+
+        cmd.exe は塊を**条件に関係なく丸ごと先に読み**、最初の `)` で塊が閉じたとみなす。
+        `echo 追加のパッケージ(pip install)は要りません。` の `)` で塊が閉じ、残りの
+        「は要りません。」が文法エラーになって、**Python が入っていても bat 全体が止まった**
+        (v1.2.0 まで。start.bat で起動しなかった原因)。全角の()か、`^)` と書く。
+        """
+        for name in BATCH_FILES:
+            text = self.read(name).decode("cp932")
+            depth = 0
+            for no, raw in enumerate(text.split("\r\n"), 1):
+                line = raw.strip()
+                low = line.lower()
+                if not line or low.startswith("rem") or line.startswith("::"):
+                    continue
+                body = line
+                if depth > 0 and body.startswith(")"):
+                    depth -= 1
+                    body = body[1:].strip()
+                    if body.lower().startswith("else"):
+                        body = body[4:].strip()
+                opens = body.endswith("(")
+                inner = body[:-1] if opens else body
+                if depth > 0:
+                    bare = inner.replace("^)", "")
+                    with self.subTest(file=name, line=no):
+                        self.assertNotIn(")", bare, f"{name}:{no} 塊の中に半角の ) があります: {line}")
+                if opens:
+                    depth += 1
+            self.assertEqual(depth, 0, f"{name}: 塊が閉じていません")
 
     def test_entry_points(self):
         vbs = self.read("Start.vbs").decode("cp932")

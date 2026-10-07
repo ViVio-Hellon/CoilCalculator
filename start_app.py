@@ -253,7 +253,9 @@ def main(argv: Optional[list] = None) -> int:
         if args.check:
             print(f"OK: Python {sys.version.split()[0]} / {app_config.STATIC_DIR}", file=sys.stderr)
             return EXIT_OK
-        return serve(open_browser=not args.no_browser, port=args.port)
+        # COIL_TOOL_NO_BROWSER=1: Start.vbs から起動するときも開かない(試験・CI。Start.vbs は引数を渡さない)
+        no_browser = args.no_browser or os.environ.get("COIL_TOOL_NO_BROWSER") == "1"
+        return serve(open_browser=not no_browser, port=args.port)
     except StartupError as exc:
         log.error("起動できません: %s / %s", exc, exc.hint)
         notify(f"起動できません。\n\n{exc}\n\n{exc.hint}", error=True)

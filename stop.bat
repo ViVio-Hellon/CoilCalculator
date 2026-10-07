@@ -3,7 +3,7 @@ rem  --- keep this file in CP932 (Shift-JIS) with CRLF line endings ---
 rem  Keep everything above the chcp line ASCII; see start.bat for why.
 chcp 932 >nul 2>&1
 rem ===================================================================
-rem  コイル・平板 重量計算ツール (ブラウザ版) 停止
+rem  VC長さ・コイル平板 計算ツール (ブラウザ版) 停止
 rem
 rem  このアプリだけを止めます。同じPCで動くほかの Python アプリは
 rem  影響を受けません。デスクトップ版は窓の × で閉じます
@@ -16,7 +16,7 @@ pushd "%~dp0" || (
     pause
     exit /b 1
 )
-title コイル・平板 重量計算ツール - 停止
+title VC長さ・コイル平板 計算ツール - 停止
 
 python --version >nul 2>&1
 if errorlevel 1 (

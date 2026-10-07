@@ -6,7 +6,7 @@ rem  first non-ASCII byte - including the bytes in these comments.
 rem  tests/test_launch_files.py enforces the encoding and this ordering.
 chcp 932 >nul 2>&1
 rem ===================================================================
-rem  コイル・平板 重量計算ツール (ブラウザ版・予備) 診断起動
+rem  VC長さ・コイル平板 計算ツール (ブラウザ版・予備) 診断起動
 rem
 rem  ふだんはデスクトップ版(CoilCalculator.exe)か Start.vbs を使います。
 rem  こちらは「起動しないとき」に原因を見るためのもので、コンソールを
@@ -23,7 +23,7 @@ pushd "%~dp0" || (
     pause
     exit /b 1
 )
-title コイル・平板 重量計算ツール - 診断起動 (この窓は閉じないでください)
+title VC長さ・コイル平板 計算ツール - 診断起動 (この窓は閉じないでください)
 
 python --version >nul 2>&1
 if errorlevel 1 (
@@ -33,7 +33,7 @@ if errorlevel 1 (
     echo   https://www.python.org/downloads/ からインストールしてください。
     echo   インストーラの最初の画面で
     echo   「Add python.exe to PATH」に必ずチェックを入れてください。
-    echo   追加のパッケージ(pip install)は要りません。
+    echo   追加のパッケージ（pip install）は要りません。
     echo.
     goto :failed
 )
@@ -54,7 +54,7 @@ echo.
 python start_app.py %*
 if errorlevel 3 (
     echo.
-    echo もう一方の版(デスクトップ版)が開いているため、起動しませんでした。
+    echo もう一方の版（デスクトップ版）が開いているため、起動しませんでした。
     echo 同時には使えません。デスクトップ版を閉じてから開き直してください。
     echo.
     goto :failed

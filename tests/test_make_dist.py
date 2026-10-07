@@ -55,7 +55,8 @@ class BuildTest(unittest.TestCase):
         fake_exe = cls.base / "CoilCalculator.exe"
         fake_exe.write_bytes(b"MZ fake")
         cls.out, cls.lines = make_dist.build(cls.base / "dist", exe=fake_exe,
-                                             vc_master_dir="\\\\srv\\share\\参照用マスタ")
+                                             vc_master_dir="\\\\srv\\share\\参照用マスタ",
+                                             admin_password="genba-2026")
 
     def test_contents(self):
         for name in make_dist.INCLUDE:
@@ -79,6 +80,24 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(conf["vc"]["master_dir"], "\\\\srv\\share\\参照用マスタ")
         original = json.loads((ROOT / "config" / "app.json").read_text(encoding="utf-8"))
         self.assertEqual(conf["version"], original["version"])
+
+    def test_admin_password_is_stored_hashed(self):
+        text = (self.out / "config" / "app.json").read_text(encoding="utf-8")
+        self.assertNotIn("genba-2026", text, "平文で残さない")
+        stored = json.loads(text)["admin"]["password_hash"]
+        self.assertTrue(stored.startswith("pbkdf2$"))
+        from coilcalc import admin_password
+        self.assertTrue(admin_password._matches("genba-2026", stored))
+        self.assertFalse(admin_password._matches("nisk", stored))
+        memo = (self.out / "配布メモ.txt").read_text(encoding="utf-8-sig")
+        self.assertNotIn("genba-2026", memo)
+        self.assertIn("管理者パスワード: 配布で決めた値", memo)
+
+    def test_vc_screen_and_manual_are_included(self):
+        for rel in ("app/static/index.html", "app/static/vc/vc.js", "app/static/vc/vc.css",
+                    "app/static/coil/index.html", "app/static/manual/vc.html", "coilcalc/vc_api.py",
+                    "coilcalc/vc/schema.sql", "coilcalc/vc/tables.py"):
+            self.assertTrue((self.out / rel).is_file(), rel)
 
     def test_dist_folder_starts_on_its_own(self):
         env = child_env(temp_local_dir())

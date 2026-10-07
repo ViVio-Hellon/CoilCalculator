@@ -10,7 +10,7 @@ use std::path::{Component, Path, PathBuf};
 /// 画面に付ける守り。Python 側(`coilcalc/web.py` の `CSP`)と同じ
 pub const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
 img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; \
-object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
+object-src 'none'; base-uri 'self'; frame-ancestors 'self'";
 
 pub fn content_type(path: &Path) -> &'static str {
     match path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).as_deref() {

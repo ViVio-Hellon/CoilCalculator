@@ -65,7 +65,7 @@ def kill(pid: int) -> None:
 
 
 def main(argv: Optional[list] = None) -> int:
-    parser = argparse.ArgumentParser(description="コイル・平板 重量計算ツールを止める")
+    parser = argparse.ArgumentParser(description="VC長さ・コイル平板 計算ツールを止める")
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)

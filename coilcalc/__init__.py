@@ -1,4 +1,4 @@
-"""コイル・平板 重量計算ツール(Python 側)
+"""VC長さ・コイル平板 計算ツール(Python 側)
 
     jsnum          JS と同じ文字を出す数の扱い(toFixed・String・Math.round・parseFloat)
     calc           コイル・平板の計算と、画面に出す文字(計算の正はここ)

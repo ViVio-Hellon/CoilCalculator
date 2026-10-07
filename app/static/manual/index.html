@@ -3,18 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>操作説明書 はじめに ─ コイル・平板 重量計算ツール</title>
+<title>操作説明書 はじめに ─ VC長さ・コイル平板 計算ツール</title>
 <link rel="stylesheet" href="manual.css">
 <script src="manual.js"></script>
 </head>
 <body>
 <header class="top">
   <div class="top__inner">
-    <p class="top__title">コイル・平板 重量計算ツール 操作説明書</p>
-    <span class="top__version">この説明書の版: <span data-manual-version>v1.2.0</span></span>
+    <p class="top__title">VC長さ・コイル平板 計算ツール 操作説明書</p>
+    <span class="top__version">この説明書の版: <span data-manual-version>v2.0.0</span></span>
     <span class="live" id="live-version" hidden></span>
     <nav class="nav" aria-label="説明書の頁">
       <a href="index.html" aria-current="page">はじめに</a>
+      <a href="vc.html">VC長さ計算</a>
       <a href="coil.html">コイル</a>
       <a href="plate.html">平板</a>
     </nav>
@@ -24,10 +25,10 @@
 <main>
   <section>
     <h1>はじめに</h1>
-    <p class="lead">コイルの肉厚・内径・幅・比重・板厚から<b>重量・長さ・巻き数</b>を、平板の寸法 A・B と板厚・比重から<b>重量・面積・体積</b>を計算するツールです。3D の図・グラフ・計算書の印刷もできます。</p>
+    <p class="lead">紙管に巻かれた <b>VCフィルムの残りの長さ</b>と定尺ごとの枚数・早見表(VC長さ計算)と、コイル・平板の<b>重量・長さ・巻き数</b>(3D の図・グラフ・計算書の印刷)を1つの画面で使うツールです。日報管理ツールの「VC長さ計算」の面をそのまま移したもので、<b>VC計算マスタも同じファイルを共有</b>できます。</p>
     <ul class="toc">
       <li><a href="#open">開き方</a></li>
-      <li><a href="#screen">画面のつくり</a></li>
+      <li><a href="#screen">画面のつくり(5つの面)</a></li>
       <li><a href="#both">2つの版は同時に使えない</a></li>
       <li><a href="#close">終わり方</a></li>
       <li><a href="#version">版の見方</a></li>
@@ -43,20 +44,42 @@
         <thead><tr><th>版</th><th>開き方</th><th>閉じ方</th></tr></thead>
         <tbody>
           <tr><td><b>デスクトップ版</b>(ふだん)</td><td><code>CoilCalculator.exe</code> をダブルクリック</td><td>窓の右上の × →「終了する」</td></tr>
-          <tr><td>ブラウザ版(予備)</td><td><code>Start.vbs</code> をダブルクリック。既定のブラウザ(Edge など)で開きます</td><td>画面の左上の「終了」→ OK</td></tr>
+          <tr><td>ブラウザ版(予備)</td><td><code>Start.vbs</code> をダブルクリック。既定のブラウザ(Edge など)で開きます</td><td>画面の右上の「終了」→ OK</td></tr>
         </tbody>
       </table>
     </div>
     <figure>
-      <img src="img/desktop-window.jpg" alt="デスクトップ版の窓。左に入力、真ん中に 3D のコイル、右にグラフと結果が並ぶ" width="1500" height="940">
-      <figcaption>デスクトップ版の窓。開くとすぐに計算された状態で出ます。</figcaption>
+      <img src="img/desktop-window.jpg" alt="デスクトップ版の窓。VC長さ計算の「計算」の面が開いている" width="1500" height="940">
+      <figcaption>デスクトップ版の窓。開くと VC長さ計算の「計算」の面が出ます。</figcaption>
     </figure>
     <div class="note"><b>要るもの</b>このPCに Python(3.8 以上)が入っていれば動きます。追加のインストールはありません。インターネットにつながっていなくても使えます。</div>
   </section>
 
   <section id="screen">
     <h2>画面のつくり</h2>
-    <p>いちばん上の真ん中で<b>コイル</b>と<b>平板</b>を切り替えます。左上は版と操作説明書、右上は背景(ライト / ダーク)の切替です。それぞれの画面の使い方は、次の頁にあります。</p>
+    <p>上の<b>面の札</b>で、5つの面を切り替えます。右上は版・操作説明書・背景(ライト / ダーク)の切替です。それぞれの面の使い方は、次の頁にあります。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>面</th><th>すること</th><th>説明</th></tr></thead>
+        <tbody>
+          <tr><td>計算</td><td>品種を選び、肉厚を入れて「計算」。VC長さと定尺ごとの枚数、図と計算の経過</td><td><a href="vc.html#calc">VC長さ計算</a></td></tr>
+          <tr><td>早見表</td><td>肉厚 → 長さの表(計算と同じ式)。A4 横で印刷。別の窓でも開けます</td><td><a href="vc.html#quick">VC長さ計算</a></td></tr>
+          <tr><td>コイル・平板</td><td>コイル・平板の重量・長さ・巻き数。真ん中で<b>コイル</b>と<b>平板</b>を切り替えます</td><td><a href="coil.html">コイル</a> / <a href="plate.html">平板</a></td></tr>
+          <tr><td>設定</td><td>VC計算マスタの置き場所・早見表の品種を足す/消す・管理者パスワード(管理者)</td><td><a href="vc.html#settings">VC長さ計算</a></td></tr>
+          <tr><td>マスタの表</td><td>VC計算マスタの表を見る・1行ずつ直す(管理者)</td><td><a href="vc.html#master">VC長さ計算</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="two">
+      <figure>
+        <a href="vc.html"><img src="img/vc-overview.jpg" alt="VC長さ計算の計算の面" width="1600" height="950"></a>
+        <figcaption><a href="vc.html">VC長さ計算の使い方</a>(VC長さ・枚数・早見表・マスタ)</figcaption>
+      </figure>
+      <figure>
+        <a href="vc.html#quick"><img src="img/vc-quick.jpg" alt="早見表の面" width="1600" height="950"></a>
+        <figcaption><a href="vc.html#quick">早見表</a>(印刷できます)</figcaption>
+      </figure>
+    </div>
     <div class="two">
       <figure>
         <a href="coil.html"><img src="img/coil-overview.jpg" alt="コイルの画面" width="1600" height="950"></a>
@@ -67,7 +90,7 @@
         <figcaption><a href="plate.html">平板の使い方</a>(重量・面積・体積)</figcaption>
       </figure>
     </div>
-    <p>画面の左上の「操作説明」を押すと、<b>いま見ている形状</b>(コイルか平板)の説明書が開きます。デスクトップ版では別の窓、ブラウザ版では別のタブで開きます。</p>
+    <p>画面の右上の「操作説明」を押すと、<b>いま見ている面</b>(VC長さ計算・コイル・平板)の説明書が開きます。デスクトップ版では別の窓、ブラウザ版では別のタブで開きます。</p>
     <figure>
       <img src="img/desktop-manual.jpg" alt="デスクトップ版で「操作説明」を押して開いた、操作説明書の窓" width="1100" height="860">
       <figcaption>デスクトップ版で「操作説明」を押したところ。説明書は別の窓で開き、計算の窓はそのまま使えます。</figcaption>
@@ -98,7 +121,7 @@
       <img src="img/desktop-refused.png" alt="「ブラウザ版が動いています」の知らせ" width="720" height="230">
       <figcaption>ブラウザ版が動いているときにデスクトップ版を開いたところ。OK を押すと閉じます(Windows では見た目が少し違います)。</figcaption>
     </figure>
-    <div class="note"><b>デスクトップ版に切り替えたいとき</b>ブラウザ版の画面の左上の「終了」を押してから、デスクトップ版を開きます。ブラウザのタブを閉じただけのときは、1〜2分たつとブラウザ版が自分で終わるので、それから開けます。</div>
+    <div class="note"><b>デスクトップ版に切り替えたいとき</b>ブラウザ版の画面の右上の「終了」を押してから、デスクトップ版を開きます。ブラウザのタブを閉じただけのときは、1〜2分たつとブラウザ版が自分で終わるので、それから開けます。</div>
   </section>
 
   <section id="close">
@@ -111,15 +134,15 @@
           <img src="img/desktop-close.png" alt="窓の × を押したときの確かめ。「終了する」と「やめる」のボタン" width="454" height="132">
           <figcaption>窓の × を押したときの確かめ(Windows では見た目が少し違います)。ブラウザ版の「終了」と同じ確かめです。</figcaption>
         </figure>
-        <p>説明書の窓が開いていても、計算の窓を閉じれば全部終わります。説明書の窓の × は、確かめずに説明書の窓だけを閉じます。</p>
+        <p>説明書の窓・早見表の窓が開いていても、計算の窓を閉じれば全部終わります。説明書・早見表の窓の × は、確かめずにその窓だけを閉じます。VC計算マスタへ書いている最中に終了を押すと、確かめの文に「書いている最中です」と出ます。少し待ってから終了してください。</p>
         <h3>ブラウザ版</h3>
-        <p>画面の左上の「終了」を押し、「ブラウザ版を終了しますか?」で OK を押します。キャンセルなら、そのまま使い続けられます。終わったら、ブラウザのタブを閉じてください。</p>
+        <p>画面の右上の「終了」を押し、「ブラウザ版を終了しますか?」で OK を押します。キャンセルなら、そのまま使い続けられます。終わったら、ブラウザのタブを閉じてください。</p>
         <p>止まらないときは、ツールのフォルダの <code>stop.bat</code> をダブルクリックします。</p>
       </div>
       <div>
         <figure>
-          <img src="img/browser-tools.png" alt="ブラウザ版の左上。版・操作説明・終了のボタン" width="480" height="60">
-          <figcaption>ブラウザ版の左上。いちばん右が「終了」です(デスクトップ版には出ません)。</figcaption>
+          <img src="img/browser-tools.png" alt="ブラウザ版の右上。版・操作説明・終了・背景のボタン" width="520" height="46">
+          <figcaption>ブラウザ版の右上。「終了」はブラウザ版だけに出ます(デスクトップ版は窓の ×)。</figcaption>
         </figure>
         <figure>
           <img src="img/browser-quitted.png" alt="「終了しました」の画面" width="800" height="260">
@@ -131,14 +154,14 @@
 
   <section id="version">
     <h2>版の見方</h2>
-    <p>画面の左上に、いま使っている<b>版</b>と、<b>デスクトップ版かブラウザ版か</b>が出ています。押すと詳しい中身が出ます。不具合を知らせるときは、この版を一緒に伝えてください。</p>
+    <p>画面の右上に、いま使っている<b>版</b>と、<b>デスクトップ版かブラウザ版か</b>が出ています。押すと詳しい中身が出ます。不具合を知らせるときは、この版を一緒に伝えてください。</p>
     <div class="two">
       <figure>
-        <img src="img/version-desktop.png" alt="デスクトップ版の版の詳細" width="560" height="300">
+        <img src="img/version-desktop.png" alt="デスクトップ版の版の詳細" width="760" height="330">
         <figcaption>デスクトップ版。アプリ・外枠・計算の処理(Python)の版が出ます。</figcaption>
       </figure>
       <figure>
-        <img src="img/version-browser.png" alt="ブラウザ版の版の詳細" width="560" height="300">
+        <img src="img/version-browser.png" alt="ブラウザ版の版の詳細" width="760" height="330">
         <figcaption>ブラウザ版。どのアドレスで動いているかも出ます。</figcaption>
       </figure>
     </div>
@@ -163,6 +186,8 @@
         <thead><tr><th>こうなった</th><th>こうする</th></tr></thead>
         <tbody>
           <tr><td>デスクトップ版を開くと「起動できませんでした」と出る</td><td>出ている理由と「次にすること」に従います。多いのは Python が入っていないときです(下の図)。直るまではブラウザ版も同じ理由で使えないので、担当に連絡してください</td></tr>
+          <tr><td>計算の面の上に「マスタを読めないので、最後に読めた中身で…」「VBA に直書きされていた初期値で…」と出る</td><td>VC計算マスタの置き場所(共有のフォルダ)に届いていません。計算はそのまま使えます(最後に読めた中身か VBA の初期値)。共有がつながれば次の操作で戻ります。置き場所が違うときは「設定」→ マスタの置き場所 で直します(<a href="vc.html#settings">設定</a>)</td></tr>
+          <tr><td>「マスタの表」や「設定」で直そうとすると「管理者パスワードが要ります」と出る</td><td>管理者パスワードを入れて「鍵を開ける」を押します。終了するか「鍵を閉める」まで開いています(<a href="vc.html#key">鍵</a>)</td></tr>
           <tr><td>入力した欄が赤くなり、結果が変わらない</td><td>その欄の値が範囲の外です。欄の下に出ている範囲の中の値に直すと、すぐ計算されます(<a href="coil.html#input">コイル</a> / <a href="plate.html#input">平板</a>)</td></tr>
           <tr><td>画面の上に赤い帯「計算の処理(Python)と繋がりません」が出る</td><td>ツールを閉じて開き直します。ブラウザ版なら <code>Start.vbs</code> をもう一度開きます</td></tr>
           <tr><td>「印刷」が押せない</td><td>範囲の外の欄(赤い欄)があると印刷できません。直してから押してください</td></tr>
@@ -178,7 +203,7 @@
     <p>ログ(動作の記録)の場所: <code>%LOCALAPPDATA%\CoilCalculator\logs\coilcalc.log</code></p>
   </section>
 
-  <footer>コイル・平板 重量計算ツール 操作説明書 <span data-manual-version>v1.2.0</span> ─ 写真は <code>scripts/make_manual_images.py</code> で撮り直せます。</footer>
+  <footer>VC長さ・コイル平板 計算ツール 操作説明書 <span data-manual-version>v2.0.0</span> ─ 写真は <code>scripts/make_manual_images.py</code> で撮り直せます。</footer>
 </main>
 </body>
 </html>

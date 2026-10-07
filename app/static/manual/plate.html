@@ -3,18 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>操作説明書 平板 ─ コイル・平板 重量計算ツール</title>
+<title>操作説明書 平板 ─ VC長さ・コイル平板 計算ツール</title>
 <link rel="stylesheet" href="manual.css">
 <script src="manual.js"></script>
 </head>
 <body>
 <header class="top">
   <div class="top__inner">
-    <p class="top__title">コイル・平板 重量計算ツール 操作説明書</p>
-    <span class="top__version">この説明書の版: <span data-manual-version>v1.2.0</span></span>
+    <p class="top__title">VC長さ・コイル平板 計算ツール 操作説明書</p>
+    <span class="top__version">この説明書の版: <span data-manual-version>v2.0.0</span></span>
     <span class="live" id="live-version" hidden></span>
     <nav class="nav" aria-label="説明書の頁">
       <a href="index.html">はじめに</a>
+      <a href="vc.html">VC長さ計算</a>
       <a href="coil.html">コイル</a>
       <a href="plate.html" aria-current="page">平板</a>
     </nav>
@@ -41,7 +42,7 @@
     <h2>画面の見取り図</h2>
     <figure>
       <img src="img/plate-overview.jpg" alt="平板の画面。番号の札で各部を示している" width="1600" height="950">
-      <figcaption>番号は下の表と同じです。左上の版・操作説明、右上の背景の切替はコイルの画面と同じです。</figcaption>
+      <figcaption>番号は下の表と同じです。右上の版・操作説明・背景の切替はコイルの画面と同じです。</figcaption>
     </figure>
     <div class="table-wrap">
       <table>
@@ -88,7 +89,7 @@
         <div class="warn"><b>範囲の外の値を入れたとき</b>その欄が赤くなり、下に範囲が出ます。赤い欄があるあいだは計算せず、結果・3D・グラフは前のままです。「印刷」も押せません。</div>
       </div>
       <figure>
-        <img src="img/plate-input-error.png" alt="板厚に 0.01 を入れて赤くなった入力欄" width="331" height="618">
+        <img src="img/plate-input-error.png" alt="板厚に 0.01 を入れて赤くなった入力欄" width="324" height="465">
         <figcaption>板厚に 0.01 を入れたところ(範囲は 0.05〜1000)。</figcaption>
       </figure>
     </div>
@@ -113,7 +114,7 @@
     <h2>3D の図</h2>
     <div class="two">
       <figure>
-        <img src="img/plate-3d.png" alt="3D の平板と、寸法の札" width="929" height="744">
+        <img src="img/plate-3d.png" alt="3D の平板と、寸法の札" width="921" height="690">
         <figcaption>「詳細表示」を押すと寸法の札が出ます。</figcaption>
       </figure>
       <div>
@@ -127,7 +128,7 @@
     <h2>グラフ</h2>
     <div class="two">
       <figure>
-        <img src="img/plate-chart.png" alt="平板のパラメータ影響グラフ" width="331" height="263">
+        <img src="img/plate-chart.png" alt="平板のパラメータ影響グラフ" width="324" height="223">
         <figcaption>X 軸を A、Y 軸を重量にしたところ。赤い点線が今の値です。</figcaption>
       </figure>
       <div>
@@ -161,7 +162,7 @@
 重量(g)    = 体積(cm³) × 比重     重量(kg)  = 重量(g) / 1000</div>
   </section>
 
-  <footer>コイル・平板 重量計算ツール 操作説明書 <span data-manual-version>v1.2.0</span> ─ <a href="index.html">はじめに</a> / <a href="coil.html">コイルの使い方</a></footer>
+  <footer>VC長さ・コイル平板 計算ツール 操作説明書 <span data-manual-version>v2.0.0</span> ─ <a href="index.html">はじめに</a> / <a href="coil.html">コイルの使い方</a></footer>
 </main>
 </body>
 </html>

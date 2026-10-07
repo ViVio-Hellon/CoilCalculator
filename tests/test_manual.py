@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from make_manual_images import image_size  # noqa: E402
 
 MANUAL = ROOT / "app" / "static" / "manual"
-PAGES = ("index", "coil", "plate")
+PAGES = ("index", "vc", "coil", "plate")
 VERSION = json.loads((ROOT / "config" / "app.json").read_text(encoding="utf-8"))["version"]
 
 
@@ -36,7 +36,7 @@ class ManualPagesTest(unittest.TestCase):
         listed = re.search(r'const MANUAL_PAGES: \[&str; \d+\] = \[(.*?)\];', rust).group(1)
         self.assertEqual(sorted(re.findall(r'"(\w+)"', listed)), sorted(PAGES))
         shell = (ROOT / "app" / "static" / "coil" / "app-shell.js").read_text(encoding="utf-8")
-        self.assertIn("window.open(`manual/${page}.html`", shell)
+        self.assertIn("window.open(`/manual/${page}.html`", shell)
         self.assertIn("invoke('open_manual', { page })", shell)
 
     def test_version_is_the_tools_version(self):

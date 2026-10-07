@@ -119,7 +119,7 @@ def click(x: int, y: int) -> None:
 
 def desktop_shots(exe: str, env: dict, positions: dict, local: Path) -> None:
     log = local / "logs" / "coilcalc.log"
-    ready = lambda: log.exists() and "最初の計算を返しました: coil (desktop)" in log.read_text(encoding="utf-8")
+    ready = lambda: log.exists() and "最初の計算を返しました: vc (desktop)" in log.read_text(encoding="utf-8")
 
     # 1. ふだんの窓・版の詳細・操作説明書の窓
     app = subprocess.Popen([exe], env=env, cwd=str(ROOT))
@@ -128,10 +128,10 @@ def desktop_shots(exe: str, env: dict, positions: dict, local: Path) -> None:
             raise RuntimeError("デスクトップ版で計算が返りませんでした")
         time.sleep(3)
         snap("desktop-window.jpg", "1500x940+50+30")
-        ox, oy = window_origin("重量計算ツール v")
+        ox, oy = window_origin("計算ツール v")
         click(ox + positions["version"]["x"], oy + positions["version"]["y"])
         time.sleep(1)
-        snap("version-desktop.png", f"560x300+{ox}+{oy}")
+        snap("version-desktop.png", f"760x330+{ox + 1500 - 760}+{oy}")  # 版の札は右上
         click(ox + positions["version"]["x"], oy + positions["version"]["y"])
         time.sleep(0.5)
         click(ox + positions["help"]["x"], oy + positions["help"]["y"])

@@ -14,6 +14,7 @@ Flask は使いません(ラインPCの Python に追加のパッケージを入
     POST /api/shutdown        終了。**{"confirmed": true} のときだけ止まる**。無ければ 409 で確かめの文を返す
                               (ブラウザ版の「終了」もデスクトップ版の窓の × も、この同じ確かめを通る)
     POST /api/client-error    画面の JS のエラーを動作ログに残す
+    GET|POST /api/vc/…        VC長さ計算(計算・早見表・設定・マスタの表。coilcalc/vc_api.py)
     GET  /…                   画面のファイル(ブラウザ版だけ。デスクトップ版は Rust が返す)
 
 【答え方の約束】
@@ -37,6 +38,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import unquote
 
 from . import app_config, calc
+from .vc import db as vc_db
+from .vc_api import VcApi
 from .logging_setup import get_logger
 
 log = get_logger("coilcalc.web")
@@ -48,9 +51,11 @@ MODE_BROWSER = "browser"
 #: これを利用者に見せて「終了する」を選んだときだけ confirmed を付けて送り直す。
 #: 「やめる」・閉じる・答えが無い ときは送り直さない(= 止まらない)
 QUIT_CONFIRM = {
-    MODE_DESKTOP: "コイル・平板 重量計算ツールを終了しますか?\n入力した値は保存されません。",
+    MODE_DESKTOP: "VC長さ・コイル平板 計算ツールを終了しますか?\n入力した値は保存されません。",
     MODE_BROWSER: "ブラウザ版を終了しますか?\n入力した値は保存されません。",
 }
+#: VC計算マスタへ書いている最中に終了を押したとき、確かめの文に足す
+WRITING_NOTE = "いま VC計算マスタへ書いている最中です。少し待ってから終了してください。"
 
 # 画面のファイルの種類。Windows はレジストリの関連付けで .js が text/plain に
 # なっていることがあり、そのままだとブラウザがスクリプトを動かさない
@@ -73,7 +78,7 @@ _TYPES = {
 #: 3D の図を印刷に入れるとき data: の画像を使う。Rust 側(`static_files.rs`)と同じ
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
        "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; "
-       "object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
+       "object-src 'none'; base-uri 'self'; frame-ancestors 'self'")
 
 
 @dataclass
@@ -121,6 +126,7 @@ class App:
         self.seen_page = False
         self.stopping = False
         self._answered: set = set()
+        self.vc = VcApi(json_response, error)
 
     # ------------------------------------------------------------------
     def touch(self) -> None:
@@ -188,6 +194,18 @@ class App:
                                        "heartbeat_seconds": self.conf["browser"]["heartbeat_seconds"]})
         if method == "GET" and path == "/api/spec":
             return json_response(200, calc.spec())
+        if path.startswith("/api/vc/"):
+            self.touch()
+            answer = self.vc.handle(method, path, req.query,
+                                    self._body(req) if method == "POST" else {})
+            if answer is None:
+                return error(404, "not_found", "そんな経路はありません。")
+            if path == "/api/vc/state" and answer.status == 200 and "vc" not in self._answered:
+                # 画面 → (外枠)→ Python → 画面 が1周した印(試験 desktop_smoke.py が見る)。
+                # 最初に開く面は「計算」なので、品種の一覧を返したときに出す
+                self._answered.add("vc")
+                log.info("最初の計算を返しました: vc (%s)", self.mode)
+            return answer
         if method != "POST":
             return error(404, "not_found", "そんな経路はありません。")
 
@@ -212,10 +230,13 @@ class App:
         if path == "/api/shutdown":
             if body.get("confirmed") is not True:
                 # 確かめがまだ。**止めずに**訊く文を返す(true 以外 ── "yes" や 1 も止めない)
+                message = QUIT_CONFIRM.get(self.mode, QUIT_CONFIRM[MODE_BROWSER])
+                if vc_db.writing_now():
+                    message += "\n\n" + WRITING_NOTE
                 return json_response(409, {
                     "ok": False,
                     "confirm": {"title": self.conf.get("display_name"),
-                                "message": QUIT_CONFIRM.get(self.mode, QUIT_CONFIRM[MODE_BROWSER]),
+                                "message": message,
                                 "yes": "終了する", "no": "やめる"},
                     "error": {"code": "need_confirm", "message": "終了してよいか確かめてください。"}})
             log.info("終了の要求を受けました(%s・確かめ済み)", self.mode)

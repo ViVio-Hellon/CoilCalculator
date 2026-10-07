@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "画面(app:// で返すファイル)から外枠に頼めるもの。操作説明書の窓を開く(open_manual)だけ。計算は /api/ で Python へ",
-  "windows": ["main", "manual"],
+  "description": "画面(app:// で返すファイル)から外枠に頼めるもの。操作説明書の窓(open_manual)と早見表だけの窓(open_quick)を開くだけ。計算は /api/ で Python へ",
+  "windows": ["main", "manual", "quick"],
   "remote": {
     "urls": ["http://app.localhost/*", "app://localhost/*"]
   },

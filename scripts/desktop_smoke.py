@@ -3,7 +3,7 @@
 
 確かめること:
     1. 窓の画面が開き、**計算が Python から返ってくる**
-       ── 動作ログに「最初の計算を返しました: coil (desktop)」が出る
+       ── 動作ログに「最初の計算を返しました: vc (desktop)」が出る(最初の面は VC長さ計算)
           (WebView → 外枠(Rust)→ Python → 外枠 → WebView が1周した証拠)
     2. **どのプロセスもポートで待ち受けていない**(exe・Python・WebView の子プロセス)
     3. デスクトップ版が開いている間は、ブラウザ版を開いても**ブラウザ版が止まる**(終了コード 3)。
@@ -14,6 +14,7 @@
        (答えは COIL_TOOL_CLOSE_ANSWER で決める。決めないと本物の確かめが出る)
     7. 動いている間に、アプリのフォルダの設定・画面のファイル・.py を差し替えられる(掴んだままにしない)
     8. 作業フォルダが壊れていても起動し、ブラウザ版との排他も保つ(錠を一時フォルダに置く)
+    9. 動いている間に、VC計算マスタ(読み終えたあと)を差し替えられる(写してから読むので掴まない)
 
 使い方:
     python scripts/desktop_smoke.py --exe src-tauri/target/release/CoilCalculator.exe
@@ -164,10 +165,25 @@ def x11_close(window: int) -> bool:
     return bool(sent)
 
 
+def swap_files(targets) -> list:
+    """ファイルを、同じ中身の新しいファイルで差し替える。できなかったものを返す。"""
+    failed = []
+    for target in targets:
+        fresh = target.with_name(target.name + ".smoke")
+        shutil.copy2(target, fresh)
+        try:
+            os.replace(str(fresh), str(target))
+        except OSError as exc:
+            failed.append(f"{target.name}: {exc}")
+            fresh.unlink()
+    return failed
+
+
 def swap_app_files() -> list:
     """アプリのフォルダのファイルを、同じ中身の新しいファイルで差し替える。できなかったものを返す。"""
     failed = []
-    for rel in ("config/app.json", "app/static/index.html", "app/static/coil/app-shell.js",
+    for rel in ("config/app.json", "app/static/index.html", "app/static/coil/index.html",
+                "app/static/coil/app-shell.js", "app/static/vc/vc.js", "coilcalc/vc_api.py",
                 "app/static/vendor/three/three.min.js", "app/static/manual/img/coil-overview.jpg",
                 "bridge.py", "coilcalc/web.py", "coilcalc/calc.py"):
         target = ROOT / rel
@@ -238,7 +254,7 @@ def main() -> int:
         """exe を起動し、この起動で最初の計算が返るまで待つ。(プロセス, 返ったか)"""
         since = len(log_text(work))
         proc = subprocess.Popen([args.exe], env=launch_env, cwd=str(ROOT))
-        ready = wait_for(lambda: "最初の計算を返しました: coil (desktop)" in log_text(work)[since:]
+        ready = wait_for(lambda: "最初の計算を返しました: vc (desktop)" in log_text(work)[since:]
                          or proc.poll() is not None, args.timeout, 0.5)
         return proc, ready and proc.poll() is None
 
@@ -277,6 +293,16 @@ def main() -> int:
     failed = swap_app_files()
     check(not failed, "動いている間に、設定・画面のファイル・.py を差し替えられました(掴んだままにしていない)",
           f"差し替えられないファイルがあります(掴んだまま): {failed}")
+
+    # 9. VC計算マスタを掴んだままにしない(最初の面で読んだ。共有に置けば、ほかの人が差し替える)
+    master = work / "local" / "master" / "VC計算マスタ.sqlite3"
+    made = wait_for(master.exists, 15)
+    check(made, f"VC計算マスタを初期値で作りました({master})",
+          f"VC計算マスタができていません({master})")
+    if made:
+        failed = swap_files([master])
+        check(not failed, "動いている間に、VC計算マスタを差し替えられました(写してから読む・掴まない)",
+              f"VC計算マスタを差し替えられません(掴んだまま): {failed}")
 
     # 6. 窓の ×(「終了する」と答える)
     if request_close(app.pid):

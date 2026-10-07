@@ -133,6 +133,12 @@
     margin-bottom: 12px;
 }
 
+/* 外の枠(index.html)に載っているときは、左上の部品と背景の切替を外の枠に任せる */
+html.is-framed .app-tools,
+html.is-framed .theme-switch {
+    display: none !important;
+}
+
 @media print {
     .app-tools,
     .app-banner {

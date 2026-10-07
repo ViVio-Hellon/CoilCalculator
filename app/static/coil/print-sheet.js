@@ -152,7 +152,7 @@
         }
 
         const version = document.documentElement.dataset.version;
-        const foot = el('footer', 'ps-foot', `コイル・平板 重量計算ツール${version ? ` v${version}` : ''}(画面と同じ計算式・同じ丸めで出しています)`);
+        const foot = el('footer', 'ps-foot', `VC長さ・コイル平板 計算ツール${version ? ` v${version}` : ''}(画面と同じ計算式・同じ丸めで出しています)`);
         sheet.replaceChildren(head, results, top, steps, foot);
     }
 

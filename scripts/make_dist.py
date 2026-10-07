@@ -16,6 +16,8 @@ r"""配布用フォルダを作る(日報管理ツール・python-web-tools の 
     python scripts\make_dist.py --zip                      # zip も作る
     python scripts\make_dist.py --vc-master-dir \\サーバ\共有\参照用マスタ
                                                            # VC計算マスタの置き場所を配った先の既定にする
+    python scripts\make_dist.py --admin-password ****      # 管理者パスワードを配った先の既定にする
+                                                           # (撹拌して config\app.json に入れる。平文では残さない)
     python scripts\make_dist.py --exe D:\成果物\CoilCalculator.exe   # 入れる exe を指定
 
 【デスクトップ版の exe】
@@ -170,7 +172,8 @@ def write_launch_file(src: Path, dest: Path) -> None:
 
 
 def build(out: Path, *, force: bool = False, make_zip: bool = False,
-          exe: Optional[Path] = None, vc_master_dir: Optional[str] = None
+          exe: Optional[Path] = None, vc_master_dir: Optional[str] = None,
+          admin_password: Optional[str] = None
           ) -> Tuple[Path, List[str]]:
     """配布用フォルダを作る。戻り値は (できたフォルダ, 画面に出す行)。断るときは `SystemExit`。"""
     out = out.resolve()
@@ -221,12 +224,25 @@ def build(out: Path, *, force: bool = False, make_zip: bool = False,
     conf = json.loads(conf_path.read_text(encoding="utf-8"))
     if vc_master_dir is not None:
         conf.setdefault("vc", {})["master_dir"] = vc_master_dir.strip()
+    # 管理者パスワード(配った先の既定)。**撹拌した値だけ**を入れる。端末で変えればそちらが勝つ
+    if admin_password is not None:
+        if len(admin_password) < 4:
+            shutil.rmtree(out)
+            raise SystemExit("管理者パスワードは4文字以上にしてください。")
+        sys.path.insert(0, str(ROOT))
+        from coilcalc import admin_password as admin
+        conf.setdefault("admin", {})["password_hash"] = admin.hashed(admin_password)
+    if vc_master_dir is not None or admin_password is not None:
         conf_path.write_text(json.dumps(conf, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     where = (conf.get("vc") or {}).get("master_dir", "")
     lines.append("VC計算マスタの置き場所: " + (where or
                  "未設定(各端末の作業フォルダ %LOCALAPPDATA%\\CoilCalculator\\master に作ります。"
                  "共有するなら --vc-master-dir で共有フォルダを入れて作り直すか、"
                  "配った先の 設定 → マスタの置き場所 で変えてください)"))
+    lines.append("管理者パスワード: " + ("配布で決めた値(撹拌して config\\app.json に入れました)"
+                 if (conf.get("admin") or {}).get("password_hash")
+                 else "既定(日報管理ツールと同じ値)。変えるなら --admin-password で作り直すか、"
+                      "配った先の 設定 → 管理者パスワード で端末ごとに変えてください"))
 
     # 入っていてはいけないものが無いか、最後に確かめる
     leaked = [p for p in FORBIDDEN if (out / p).exists()]
@@ -275,13 +291,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--zip", action="store_true", help="zip も作る")
     parser.add_argument("--exe", help=f"入れるデスクトップ版の exe(既定: 直下の {EXE_NAME} など)")
     parser.add_argument("--vc-master-dir", help="VC計算マスタの置き場所(配った先の既定にする)")
+    parser.add_argument("--admin-password", help="管理者パスワード(配った先の既定にする。撹拌して入れる)")
     args = parser.parse_args(argv)
 
     out = Path(args.out) if args.out else ROOT.parent / f"{_tool_name()}_VER{_version()}"
     try:
         _out, lines = build(out, force=args.force, make_zip=args.zip,
                             exe=Path(args.exe) if args.exe else None,
-                            vc_master_dir=args.vc_master_dir)
+                            vc_master_dir=args.vc_master_dir,
+                            admin_password=args.admin_password)
     except SystemExit as exc:
         print(exc, file=sys.stderr)
         return 1

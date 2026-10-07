@@ -18,8 +18,24 @@
       Python が自分で終わる(残っているとデスクトップ版が開けないため)
 
   繋がらないときは上に帯を出す(計算の欄はそのまま。繋がり直せば帯は消える)。
+
+  【2か所で使う】
+    index.html       外の枠(VC長さ計算・面の札)。版・操作説明・終了・背景はここが持つ
+    coil/index.html  コイル・平板。外の枠の「コイル・平板」の面に枠(iframe)で載る。
+                     載っているときは左上の部品と背景の切替を出さない(外と二重にしない)。
+                     単独で開いたとき(/coil/)は、いままでどおり自分で出す
 */
 (() => {
+    /** 外の枠(index.html)の中に載っているか。同じ所から来た枠のときだけ真 */
+    const framed = (() => {
+        try {
+            return window.parent !== window && !!window.parent.document.getElementById('vcTabs');
+        } catch (err) {
+            return false;
+        }
+    })();
+    if (framed) document.documentElement.classList.add('is-framed');
+
     const seq = { coil: 0, plate: 0 };
     const applied = { coil: 0, plate: 0 };
     let banner = null;
@@ -177,9 +193,22 @@
     // --- 操作説明書 ---
     let mode = '';
 
-    /** いま見ている形状(コイル / 平板)の説明書の頁 */
+    /** いま見ている所の説明書の頁。外の枠なら面(VC長さ計算 / コイル・平板の形状)で決める */
     function currentManualPage() {
-        const active = document.querySelector('.shape-btn.active');
+        const tabs = document.getElementById('vcTabs');
+        let doc = document;
+        if (tabs) {
+            const on = tabs.querySelector('.tab[aria-selected="true"]');
+            if (!on || on.dataset.key !== 'coil') return 'vc';
+            const frame = document.getElementById('vc-coil-frame');
+            try {
+                doc = frame && frame.contentDocument ? frame.contentDocument : null;
+            } catch (err) {
+                doc = null;
+            }
+            if (!doc) return 'coil';
+        }
+        const active = doc.querySelector('.shape-btn.active');
         return active && active.dataset.shape === 'plate' ? 'plate' : 'coil';
     }
 
@@ -194,11 +223,20 @@
             return;
         }
         // ブラウザ版: 同じタブを使い回す(押すたびにタブが増えないように)
-        const opened = window.open(`manual/${page}.html`, 'coil-calculator-manual');
+        const opened = window.open(`/manual/${page}.html`, 'coil-calculator-manual');
         if (!opened) showBanner('操作説明書を開けませんでした(ブラウザがポップアップを止めています)。');
     }
 
     async function start() {
+        if (framed) {
+            // 版・操作説明・終了・開いている知らせは外の枠が持つ。版だけ受け取る(計算書の下に刷る)
+            try {
+                const health = await (await fetch('/api/health', { cache: 'no-store' })).json();
+                document.documentElement.dataset.version = health.version || '';
+                document.documentElement.dataset.mode = health.mode || '';
+            } catch (err) { /* 計算のときに帯で知らせる */ }
+            return;
+        }
         setupVersionPanel();
         document.getElementById('app-help').addEventListener('click', () => openManual(currentManualPage()));
         try {

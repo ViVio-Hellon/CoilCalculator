@@ -103,6 +103,12 @@
     // 作られる処理より先に呼ばれる ── 作り終わってから塗る
     document.addEventListener('shape-shown', () => setTimeout(() => paint3d(current()), 0));
 
+    // 外の枠(index.html)とコイル・平板の枠は、同じ所に覚える。**片方で選んだら、もう片方も
+    // 付いていく**(storage の知らせは、選んだ側でない方の画面にだけ届く)
+    window.addEventListener('storage', (e) => {
+        if (e.key === KEY) apply(saved() || system(), false);
+    });
+
     // 選んでいないあいだは Windows の設定が変わったら付いていく
     try {
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {

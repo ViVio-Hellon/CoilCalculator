@@ -54,7 +54,7 @@ class BrowserVersionTest(unittest.TestCase):
         status, body = self.get("/api/health")
         self.assertEqual(json.loads(body)["mode"], "browser")
         status, page = self.get("/")
-        self.assertIn("コイル・平板 重量計算ツール".encode("utf-8"), page)
+        self.assertIn("VC長さ・コイル平板 計算ツール".encode("utf-8"), page)
 
         # 2つ目のブラウザ版: 新しく起動せず、動いている画面を案内して終わる
         second = self.run_cmd(str(ROOT / "start_app.py"), "--no-browser", "--port", str(free_port()))

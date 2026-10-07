@@ -24,12 +24,15 @@ STATIC_DIR = APP_ROOT / "app" / "static"
 
 _DEFAULTS: Dict[str, Any] = {
     "app_id": "coil-calculator",
-    "display_name": "コイル・平板 重量計算ツール",
+    "display_name": "VC長さ・コイル平板 計算ツール",
     "version": "0.0.0",
     "local_dir_name": "CoilCalculator",
     "server": {"host": "127.0.0.1", "port": 8741, "port_retry": 5},
     "browser": {"heartbeat_seconds": 10, "idle_exit_seconds": 90,
                 "first_open_grace_seconds": 180},
+    # VC計算マスタの置き場所(空 = この端末の作業フォルダ)と、配布の既定の管理者パスワード
+    "vc": {"master_dir": ""},
+    "admin": {"password_hash": ""},
 }
 
 

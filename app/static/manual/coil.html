@@ -3,18 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>操作説明書 コイル ─ コイル・平板 重量計算ツール</title>
+<title>操作説明書 コイル ─ VC長さ・コイル平板 計算ツール</title>
 <link rel="stylesheet" href="manual.css">
 <script src="manual.js"></script>
 </head>
 <body>
 <header class="top">
   <div class="top__inner">
-    <p class="top__title">コイル・平板 重量計算ツール 操作説明書</p>
-    <span class="top__version">この説明書の版: <span data-manual-version>v1.2.0</span></span>
+    <p class="top__title">VC長さ・コイル平板 計算ツール 操作説明書</p>
+    <span class="top__version">この説明書の版: <span data-manual-version>v2.0.0</span></span>
     <span class="live" id="live-version" hidden></span>
     <nav class="nav" aria-label="説明書の頁">
       <a href="index.html">はじめに</a>
+      <a href="vc.html">VC長さ計算</a>
       <a href="coil.html" aria-current="page">コイル</a>
       <a href="plate.html">平板</a>
     </nav>
@@ -55,8 +56,9 @@
           <tr><td><span class="num">6</span></td><td>結果</td><td>重量・長さ・巻き数。それぞれの「詳細」で計算の途中が見られます</td></tr>
           <tr><td><span class="num">7</span></td><td>詳細計算過程</td><td>計算の途中をすべて並べた頁に切り替えます</td></tr>
           <tr><td><span class="num">8</span></td><td>印刷</td><td>計算書(A4 縦)を印刷します</td></tr>
-          <tr><td><span class="num">9</span></td><td>版・操作説明</td><td>いま使っている版と、この説明書(<a href="index.html#version">版の見方</a>)</td></tr>
-          <tr><td><span class="num">10</span></td><td>背景の切替</td><td>ライト / ダーク</td></tr>
+          <tr><td><span class="num">9</span></td><td>版・操作説明</td><td>いま使っている版と、この説明書(<a href="index.html#version">版の見方</a>)。右上にあり、VC長さ計算の面と同じです</td></tr>
+          <tr><td><span class="num">10</span></td><td>背景の切替</td><td>ライト / ダーク(コイル・平板の中も一緒に替わります)</td></tr>
+          <tr><td><span class="num">11</span></td><td>「コイル・平板」の面</td><td>上の面の札で、<a href="vc.html">VC長さ計算</a>(計算・早見表・設定・マスタの表)と行き来します。入れた値は面を替えても残ります</td></tr>
         </tbody>
       </table>
     </div>
@@ -70,7 +72,7 @@
       <li><span class="num">6</span> の<b>結果</b>を読みます。打つたびに計算し直すので、計算ボタンはありません。</li>
     </ol>
     <figure class="narrow">
-      <img src="img/coil-result-weight.png" alt="重量計算の結果のカード" width="331" height="134">
+      <img src="img/coil-result-weight.png" alt="重量計算の結果のカード" width="324" height="94">
       <figcaption>結果のカード。右上の「詳細」で、この値の計算の途中が出ます。</figcaption>
     </figure>
     <div class="note"><b>肉厚とは</b>巻いてあるコイルの、内側(内径)から外側までの厚みです。巻いた板そのものの厚みは「板厚」に入れます。</div>
@@ -95,7 +97,7 @@
         <div class="warn"><b>範囲の外の値を入れたとき</b>その欄が赤くなり、下に範囲が出ます。赤い欄があるあいだは計算せず、結果は前の値のままです。「印刷」も押せません。範囲の中に直すと、すぐ計算されます。</div>
       </div>
       <figure>
-        <img src="img/coil-input-error.png" alt="肉厚に 700 を入れて赤くなった入力欄" width="331" height="566">
+        <img src="img/coil-input-error.png" alt="肉厚に 700 を入れて赤くなった入力欄" width="324" height="427">
         <figcaption>肉厚に 700 を入れたところ(範囲は 0〜600)。</figcaption>
       </figure>
     </div>
@@ -120,7 +122,7 @@
     <h2>3D の図</h2>
     <div class="two">
       <figure>
-        <img src="img/coil-3d.png" alt="3D のコイルと、左上の寸法の札" width="929" height="744">
+        <img src="img/coil-3d.png" alt="3D のコイルと、左上の寸法の札" width="921" height="690">
         <figcaption>「詳細表示」を押すと、左上に寸法と巻き数が出ます。</figcaption>
       </figure>
       <div class="table-wrap">
@@ -144,7 +146,7 @@
     <h2>グラフ</h2>
     <div class="two">
       <figure>
-        <img src="img/coil-chart.png" alt="パラメータ影響グラフ。肉厚と重量の関係の線と、現在値の縦線" width="331" height="263">
+        <img src="img/coil-chart.png" alt="パラメータ影響グラフ。肉厚と重量の関係の線と、現在値の縦線" width="324" height="223">
         <figcaption>X 軸を肉厚、Y 軸を重量にしたところ。赤い点線が今の値です。</figcaption>
       </figure>
       <div>
@@ -183,7 +185,7 @@
 巻き数         = 肉厚 / 板厚(整数に四捨五入)</div>
   </section>
 
-  <footer>コイル・平板 重量計算ツール 操作説明書 <span data-manual-version>v1.2.0</span> ─ <a href="index.html">はじめに</a> / <a href="plate.html">平板の使い方</a></footer>
+  <footer>VC長さ・コイル平板 計算ツール 操作説明書 <span data-manual-version>v2.0.0</span> ─ <a href="index.html">はじめに</a> / <a href="plate.html">平板の使い方</a></footer>
 </main>
 </body>
 </html>

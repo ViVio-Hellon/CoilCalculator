@@ -60,7 +60,7 @@ class StartupError(Exception):
 # ==================================================================
 # 知らせる(コンソールが無い pythonw でも見えるように)
 # ==================================================================
-def notify(message: str, *, title: str = "コイル・平板 重量計算ツール", error: bool = False) -> None:
+def notify(message: str, *, title: str = "VC長さ・コイル平板 計算ツール", error: bool = False) -> None:
     """利用者に知らせる。Windows ではメッセージボックス、ほかは標準エラー。
 
     `Start.vbs` は pythonw(コンソール無し)で起動するので、print だけでは誰にも見えない。
@@ -150,9 +150,14 @@ def run_checks() -> None:
     if sys.version_info < MIN_PYTHON:
         raise StartupError(f"Python {sys.version.split()[0]} は古すぎます",
                            "Python 3.8 以上を入れてください。")
-    index = app_config.STATIC_DIR / "index.html"
-    if not index.is_file():
-        raise StartupError(f"画面のファイルがありません: {index}",
+    for rel in ("index.html", "vc/vc.js", "coil/index.html"):
+        page = app_config.STATIC_DIR / rel
+        if not page.is_file():
+            raise StartupError(f"画面のファイルがありません: {page}",
+                               "アプリのフォルダを丸ごとコピーし直してください。")
+    schema = app_config.APP_ROOT / "coilcalc" / "vc" / "schema.sql"
+    if not schema.is_file():
+        raise StartupError(f"VC計算マスタの表の形がありません: {schema}",
                            "アプリのフォルダを丸ごとコピーし直してください。")
 
 
@@ -240,7 +245,7 @@ def watch_idle(app: web.App, stopped: threading.Event, browser: dict) -> None:
 
 
 def main(argv: Optional[list] = None) -> int:
-    parser = argparse.ArgumentParser(description="コイル・平板 重量計算ツール(ブラウザ版)")
+    parser = argparse.ArgumentParser(description="VC長さ・コイル平板 計算ツール(ブラウザ版)")
     parser.add_argument("--check", action="store_true", help="動かせるかだけ確かめる")
     parser.add_argument("--no-browser", action="store_true", help="ブラウザを開かない")
     parser.add_argument("--port", type=int, default=None, help="待ち受けるポート(既定は config/app.json)")

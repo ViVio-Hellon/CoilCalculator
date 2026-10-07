@@ -1,682 +1,447 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>コイル・平板 重量計算ツール</title>
-    <!-- ライブラリはアプリに同梱(ラインPCはインターネットに出られないため。app/static/vendor/) -->
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="coil/aluminum-coil-calculator.css">
-    <link rel="stylesheet" href="coil/plate-calculator.css">
-    <link rel="stylesheet" href="coil/print-sheet.css">
-    <link rel="stylesheet" href="coil/coil-theme.css">
-    <link rel="stylesheet" href="coil/coil-fit.css">
-    <link rel="stylesheet" href="coil/app-shell.css">
-    <script src="vendor/three/three.min.js"></script>
-    <script src="vendor/three/OrbitControls.js"></script>
-    <script src="vendor/chartjs/chart.min.js"></script>
-    <script src="vendor/chartjs/chartjs-plugin-annotation.min.js"></script>
-    <!-- 背景(ライト/ダーク)は本文を描く前に決める(白く光ってから暗くならないように) -->
-    <script src="coil/coil-theme.js"></script>
-    <!-- 計算の処理(Python)とのやりとり。計算機より先に読む -->
-    <script src="coil/app-shell.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VC長さ・コイル平板 計算ツール</title>
+<!--
+  外の枠 ── VC長さ計算(日報管理ツールの「VC長さ計算」の移植)とコイル・平板を1つの画面に
+
+    面        計算 / 早見表 / コイル・平板 / 設定 / マスタの表(並びは coilcalc/vc/view.py の TABS と同じ)
+    見出し    版・操作説明・(ブラウザ版だけ)終了・背景(coil/app-shell.js・coil/coil-theme.js を共用)
+    コイル・平板は coil/index.html を枠(iframe)で載せる。開いたときに読み込む(3D とグラフは大きい)
+
+  ?window=quick&tab=quick … 早見表だけの窓(見出しも面の札も出さない)
+  判断はサーバ(coilcalc/vc_api.py)。画面は欄の文字を送り、返ってきたものを描くだけ(vc/vc.js)。
+-->
+<link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+<link rel="stylesheet" href="vc/vc.css">
+<!-- 背景(ライト/ダーク)は本文を描く前に決める。コイル・平板の枠と同じ所に覚える -->
+<script src="coil/coil-theme.js"></script>
+<!-- 版・操作説明・終了・繋がらないときの帯(コイル・平板と共用) -->
+<script src="coil/app-shell.js"></script>
+<script type="module" src="vc/main.js"></script>
 </head>
 <body>
-    <div class="container">
-        <!-- 左上: 版・操作説明書・(ブラウザ版だけ)終了。中身は app-shell.js が入れる -->
-        <div class="app-tools" role="group" aria-label="ツールの情報と操作">
-            <button type="button" id="app-version" class="app-chip" aria-expanded="false"
-                    aria-controls="app-version-panel" title="版の詳細を見ます">
-                <i class="fas fa-tag"></i><span id="app-version-text">版を確認中…</span>
-            </button>
-            <button type="button" id="app-help" class="app-chip" title="いま見ている形状の操作説明書を開きます">
-                <i class="fas fa-book"></i>操作説明
-            </button>
-            <!-- ブラウザ版だけの「終了」(デスクトップ版は窓の × で閉じる) -->
-            <button type="button" id="app-quit" class="app-chip app-quit" hidden title="ブラウザ版を終了します">
-                <i class="fas fa-power-off"></i>終了
-            </button>
-            <div id="app-version-panel" class="app-version-panel" role="dialog" aria-label="版の詳細" hidden>
-                <h2 class="app-version-panel__title">版の詳細</h2>
-                <dl id="app-version-list"></dl>
-                <p class="app-version-panel__note">不具合を知らせるときは、この画面の版を一緒に伝えてください。</p>
-            </div>
-        </div>
+<header class="vc-top">
+  <div class="vc-top__title">
+    <b>VC長さ・コイル平板 計算ツール</b>
+    <span class="lead">VCフィルムの残り長さ・枚数・早見表 / コイル・平板の重量</span>
+  </div>
+  <div class="app-tools" role="group" aria-label="ツールの情報と操作">
+    <button type="button" id="app-version" class="app-chip" aria-expanded="false"
+            aria-controls="app-version-panel" title="版の詳細を見ます">
+      <i class="fas fa-tag"></i><span id="app-version-text">版を確認中…</span>
+    </button>
+    <button type="button" id="app-help" class="app-chip" title="いま見ている面の操作説明書を開きます">
+      <i class="fas fa-book"></i>操作説明
+    </button>
+    <!-- ブラウザ版だけの「終了」(デスクトップ版は窓の × で閉じる。どちらも同じ確かめを通る) -->
+    <button type="button" id="app-quit" class="app-chip app-quit" hidden title="ブラウザ版を終了します">
+      <i class="fas fa-power-off"></i>終了
+    </button>
+    <div id="app-version-panel" class="app-version-panel" role="dialog" aria-label="版の詳細" hidden>
+      <h2 class="app-version-panel__title">版の詳細</h2>
+      <dl id="app-version-list"></dl>
+      <p class="app-version-panel__note">不具合を知らせるときは、この画面の版を一緒に伝えてください。</p>
+    </div>
+  </div>
+  <div class="theme-switch" role="group" aria-label="背景">
+    <button type="button" class="theme-btn" data-theme-choice="light" aria-pressed="false" title="明るい背景にする">
+      <i class="fas fa-sun"></i>ライト
+    </button>
+    <button type="button" class="theme-btn" data-theme-choice="dark" aria-pressed="false" title="暗い背景にする">
+      <i class="fas fa-moon"></i>ダーク
+    </button>
+  </div>
+</header>
 
-        <!-- 背景の切替(この PC のブラウザに覚える。まだ選んでいなければ Windows の設定に従う) -->
-        <div class="theme-switch" role="group" aria-label="背景">
-            <button type="button" class="theme-btn" data-theme-choice="light" aria-pressed="false" title="明るい背景にする">
-                <i class="fas fa-sun"></i>ライト
-            </button>
-            <button type="button" class="theme-btn" data-theme-choice="dark" aria-pressed="false" title="暗い背景にする">
-                <i class="fas fa-moon"></i>ダーク
-            </button>
-        </div>
+<main class="work">
+<div class="msg msg--warn" id="vc-master-note" hidden></div>
 
-        <!-- 形状の切替(コイル / 平板)。平板はコイルと同じ仕組み(入力・3D・グラフ・詳細計算過程・詳細) -->
-        <div class="shape-switch" role="tablist" aria-label="形状">
-            <button type="button" class="shape-btn active" role="tab" aria-selected="true" data-shape="coil">
-                <i class="fas fa-toilet-paper"></i> コイル
-            </button>
-            <button type="button" class="shape-btn" role="tab" aria-selected="false" data-shape="plate">
-                <i class="fas fa-square"></i> 平板
-            </button>
-        </div>
+<div class="tabs" data-tabs="vc" id="vcTabs">
+  <div class="tabs__bar" role="tablist" aria-label="面">
+    <button class="tab" type="button" role="tab" data-key="calc" data-default="1"
+            id="tab-calc" aria-controls="panel-calc" aria-selected="false" title="肉厚から VC長さと、定尺ごとの枚数を出す">
+      <span class="tab__label">計算</span>
+    </button>
+    <button class="tab" type="button" role="tab" data-key="quick"
+            id="tab-quick" aria-controls="panel-quick" aria-selected="false" title="肉厚 → 長さの表(計算と同じ式)。印刷できる">
+      <span class="tab__label">早見表</span>
+    </button>
+    <button class="tab" type="button" role="tab" data-key="coil"
+            id="tab-coil" aria-controls="panel-coil" aria-selected="false" title="コイル・平板の重量・長さ(3D・グラフ・計算書)">
+      <span class="tab__label">コイル・平板</span>
+    </button>
+    <button class="tab" type="button" role="tab" data-key="settings"
+            id="tab-settings" aria-controls="panel-settings" aria-selected="false" title="マスタの置き場所・早見表のマスをまとめて作る(管理者)">
+      <span class="tab__label">設定</span>
+    </button>
+    <button class="tab" type="button" role="tab" data-key="master"
+            id="tab-master" aria-controls="panel-master" aria-selected="false" title="VC計算マスタの表を見る・1行ずつ直す(管理者)">
+      <span class="tab__label">マスタの表</span>
+    </button>
+  </div>
 
-        <div id="coil-section" class="shape-section">
+  <div class="tabs__panels">
+
+  <!-- ==============================================================
+     計算(VBA `UFVC計算`)── 左に結果、右に操作(作業の順)
+     ============================================================== -->
+  <section class="tabpanel" data-panel="calc" id="panel-calc" role="tabpanel"
+           aria-labelledby="tab-calc" >
+    <p class="lead">品種を選び、肉厚を測って入れて「計算」。VC長さと、定尺ごとの枚数を出します。</p>
+    <div class="vc-calc">
+      <section class="vc-card vc-result" aria-labelledby="vc-result-title">
         <header>
-            <h1><i class="fas fa-cog text-primary"></i> アルミニウムコイル重量・長さ計算ツール</h1>
-            <p>コイルの肉厚、内径、幅から重量、長さ、巻き数を計算します</p>
+          <h2 id="vc-result-title">結果</h2>
+          <span class="badge badge--todo" id="vc-result-state" hidden></span>
         </header>
+        <div class="vc-pad">
+          <div class="vc-picked">
+            <span class="vc-picked__vendor" id="vc-picked-vendor"></span>
+            <b class="vc-picked__name" id="vc-picked-name">品種を選んでください</b>
+            <span class="vc-picked__spec" id="vc-picked-spec"></span>
+          </div>
 
-        <div class="tab-container">
-            <div class="tabs">
-                <div class="tab active" data-tab="main-tab">
-                    <i class="fas fa-calculator"></i> 計算・表示
-                </div>
-                <div class="tab" data-tab="details-tab">
-                    <i class="fas fa-list-ol"></i> 詳細計算過程
-                </div>
-                <button type="button" class="print-btn" data-print="coil" id="coil-print">
-                    <i class="fas fa-print"></i> 印刷
-                </button>
+          <div class="vc-hero">
+            <span class="vc-hero__label">VC長さ</span>
+            <output class="vc-hero__value" id="vc-out-length" for="vc-vclen">—</output>
+            <span class="vc-hero__unit">m</span>
+          </div>
+
+          <h3 class="vc-sub">枚数(VC長さ ÷ 製品の丈)</h3>
+          <div class="vc-counts" id="vc-counts"></div>
+
+          <div class="msg msg--error" id="vc-calc-error" hidden></div>
+          <ul class="vc-notes" id="vc-notes" hidden></ul>
+          <section class="vc-explain" id="vc-explain" hidden aria-labelledby="vc-explain-title">
+            <h3 class="vc-sub" id="vc-explain-title">図と計算の経過
+              <span class="lead">段にカーソルを当てると、図のその部分が光ります</span></h3>
+            <div class="vc-explain__grid">
+              <figure class="vc-roll" id="vc-roll"></figure>
+              <ol class="vc-steps" id="vc-steps"></ol>
             </div>
-
-            <!-- メイン計算タブ -->
-            <div id="main-tab" class="tab-content active">
-                <div class="content">
-                    <!-- 入力パラメータ -->
-                    <div class="right-content">
-                        <section class="input-panel">
-                            <h2 class="panel-title"><i class="fas fa-sliders-h"></i> 入力パラメータ</h2>
-
-                            <div class="material-presets">
-                                <div class="preset-title"><i class="fas fa-tags"></i> 材質プリセット</div>
-                                <div class="preset-select-container">
-                                    <select id="material-preset" class="form-control">
-                                        <option value="aluminum" data-gravity="2.70" data-color="#AAAAAA">アルミニウム (2.70)</option>
-                                        <option value="steel" data-gravity="7.87" data-color="#71797E">鉄 (7.87)</option>
-                                        <option value="copper" data-gravity="8.96" data-color="#B87333">銅 (8.96)</option>
-                                        <option value="stainless" data-gravity="7.93" data-color="#C0C0C0">ステンレス (7.93)</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="thickness">肉厚 (mm) <span class="text-accent">※0〜600</span></label>
-                                <input type="number" id="thickness" class="form-control" value="400" min="0" max="600" step="1">
-                                <div id="thickness-error" class="error-message" style="display: none;">0〜600の範囲で入力してください</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="inner-diameter">内径 (mm) <span class="text-accent">※250〜610</span></label>
-                                <input type="number" id="inner-diameter" class="form-control" value="557" min="250" max="610" step="1">
-                                <div id="inner-diameter-error" class="error-message" style="display: none;">250〜610の範囲で入力してください</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="coil-width">コイル幅 (mm) <span class="text-accent">※0〜1800</span></label>
-                                <input type="number" id="coil-width" class="form-control" value="1250" min="0" max="1800" step="1">
-                                <div id="coil-width-error" class="error-message" style="display: none;">0〜1800の範囲で入力してください</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="specific-gravity">比重 (g/cm³) <span class="text-accent">※0.01〜100</span></label>
-                                <input type="number" id="specific-gravity" class="form-control" value="2.70" min="0.01" max="100" step="0.01">
-                                <div id="specific-gravity-error" class="error-message" style="display: none;">0.01〜100の範囲で入力してください</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="plate-thickness">板厚 (mm) <span class="text-accent">※0.05〜20</span></label>
-                                <input type="number" id="plate-thickness" class="form-control" value="1.00" min="0.05" max="20" step="0.01">
-                                <div id="plate-thickness-error" class="error-message" style="display: none;">0.05〜20の範囲で入力してください</div>
-                            </div>
-                        </section>
-                    </div>
-                    
-                    <!-- 視覚表示パネル -->
-                    <section class="visual-panel">
-                        <h2 class="panel-title"><i class="fas fa-cube"></i> 3Dコイル表示</h2>
-                        
-                        <div class="controls-container">
-                            <div class="control-buttons">
-                                <button id="toggle-rotation" class="control-btn">
-                                    <i class="fas fa-sync"></i> 回転の切替
-                                </button>
-                                <button id="reset-camera" class="control-btn">
-                                    <i class="fas fa-home"></i> カメラリセット
-                                </button>
-                                <button id="toggle-details" class="control-btn">
-                                    <i class="fas fa-info-circle"></i> 詳細表示
-                                </button>
-                            </div>
-                            
-                            <div class="color-controls">
-                                <div class="color-option">
-                                    <label for="coil-color">コイル色:</label>
-                                    <input type="color" id="coil-color" value="#aaaaaa">
-                                </div>
-                                <div class="color-option">
-                                    <label for="bg-color">背景色:</label>
-                                    <input type="color" id="bg-color" value="#f5f5f5">
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div id="3d-container" class="model-container"></div>
-                        
-                        <div class="tip-container">
-                            <p class="tip">
-                                <i class="fas fa-mouse"></i> マウス操作: ドラッグで回転、スクロールでズーム
-                            </p>
-                        </div>
-                    </section>
-                    
-                    <!-- 計算結果カード -->
-                    <div class="card-area">
-                        <div class="results">
-
-
-
-    <!-- グラフカード (新規追加) -->
-    <div class="result-card graph-card fade-in">
-        <h3 class="result-title graph-title">
-            <div><i class="fas fa-chart-line"></i> パラメータ影響グラフ</div>
-            <div class="graph-controls">
-                <select id="x-axis-param" class="graph-select">
-                    <option value="thickness">X軸: 肉厚 (mm)</option>
-                    <option value="inner-diameter">X軸: 内径 (mm)</option>
-                    <option value="coil-width">X軸: コイル幅 (mm)</option>
-                    <option value="plate-thickness">X軸: 板厚 (mm)</option>
-                </select>
-                <select id="y-axis-result" class="graph-select">
-                    <option value="weight">Y軸: 重量 (kg)</option>
-                    <option value="length">Y軸: 長さ (m)</option>
-                    <option value="windings">Y軸: 巻き数</option>
-                </select>
-            </div>
-        </h3>
-        <div class="chart-container">
-            <canvas id="parameter-chart"></canvas>
+          </section>
         </div>
-    </div>
+      </section>
 
-
-
-
-
-                            <!-- 重量計算結果 -->
-                            <div class="result-card fade-in">
-                                <h3 class="result-title weight-title">
-                                    <div><i class="fas fa-weight-hanging"></i> 重量計算</div>
-                                    <button class="details-btn" data-modal="weight-modal">詳細</button>
-                                </h3>
-                                <div class="result-value" id="weight-result">—</div>
-                            </div>
-
-                            <!-- 長さ計算結果 -->
-                            <div class="result-card fade-in">
-                                <h3 class="result-title length-title">
-                                    <div><i class="fas fa-ruler-horizontal"></i> 長さ計算</div>
-                                    <button class="details-btn" data-modal="length-modal">詳細</button>
-                                </h3>
-                                <div class="result-value" id="length-result">—</div>
-                            </div>
-
-                            <!-- 巻き数計算結果 -->
-                            <div class="result-card fade-in">
-                                <h3 class="result-title windings-title">
-                                    <div><i class="fas fa-sync"></i> 巻き数計算</div>
-                                    <button class="details-btn" data-modal="windings-modal">詳細</button>
-                                </h3>
-                                <div class="result-value" id="windings-result">—</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 詳細計算過程タブ -->
-            <div id="details-tab" class="tab-content">
-                <div class="calculation-details">
-                    <!-- 基本寸法計算 -->
-                    <div class="detail-card">
-                        <h3 class="details-title"><i class="fas fa-ruler-combined"></i> 基本寸法計算</h3>
-                        <div class="calculation-formula" id="dimensions-detailed"></div>
-                    </div>
-
-                    <!-- 体積計算 -->
-                    <div class="detail-card">
-                        <h3 class="details-title"><i class="fas fa-cube"></i> 体積計算</h3>
-                        <div class="calculation-formula" id="volume-detailed"></div>
-                    </div>
-
-                    <!-- 重量計算 -->
-                    <div class="detail-card">
-                        <h3 class="details-title"><i class="fas fa-weight-hanging"></i> 重量計算</h3>
-                        <div class="calculation-formula" id="weight-detailed"></div>
-                    </div>
-
-                    <!-- 長さ計算 -->
-                    <div class="detail-card">
-                        <h3 class="details-title"><i class="fas fa-ruler-horizontal"></i> 長さ計算</h3>
-                        <div class="calculation-formula" id="length-detailed"></div>
-                    </div>
-
-                    <!-- 巻き数計算 -->
-                    <div class="detail-card">
-                        <h3 class="details-title"><i class="fas fa-sync"></i> 巻き数計算</h3>
-                        <div class="calculation-formula" id="windings-detailed"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        </div><!-- /coil-section -->
-
-        <!-- 平板(コイルと同じ仕組み。id は plate- で始める) -->
-        <div id="plate-section" class="shape-section" hidden>
+      <section class="vc-card vc-ops" aria-labelledby="vc-ops-title">
         <header>
-            <h1><i class="fas fa-square text-primary"></i> 平板重量計算ツール</h1>
-            <p>平板の寸法 A・B と板厚から、面積・体積・重量を計算します</p>
+          <span class="vc-step-no" aria-hidden="true">1</span>
+          <h2 id="vc-ops-title">品種</h2>
+          <span class="lead" id="vc-product-count"></span>
         </header>
-
-        <div class="tab-container">
-            <div class="tabs">
-                <div class="ptab active" data-ptab="plate-main-tab">
-                    <i class="fas fa-calculator"></i> 計算・表示
-                </div>
-                <div class="ptab" data-ptab="plate-details-tab">
-                    <i class="fas fa-list-ol"></i> 詳細計算過程
-                </div>
-                <button type="button" class="print-btn" data-print="plate" id="plate-print">
-                    <i class="fas fa-print"></i> 印刷
-                </button>
-            </div>
-
-            <!-- メイン計算タブ -->
-            <div id="plate-main-tab" class="ptab-content active">
-                <div class="content">
-                    <!-- 入力パラメータ -->
-                    <div class="right-content">
-                        <section class="input-panel">
-                            <h2 class="panel-title"><i class="fas fa-sliders-h"></i> 入力パラメータ</h2>
-
-                            <div class="material-presets">
-                                <div class="preset-title"><i class="fas fa-tags"></i> 材質プリセット</div>
-                                <div class="preset-select-container">
-                                    <select id="plate-material-preset" class="form-control">
-                                        <option value="aluminum" data-gravity="2.70" data-color="#AAAAAA">アルミニウム (2.70)</option>
-                                        <option value="steel" data-gravity="7.87" data-color="#71797E">鉄 (7.87)</option>
-                                        <option value="copper" data-gravity="8.96" data-color="#B87333">銅 (8.96)</option>
-                                        <option value="stainless" data-gravity="7.93" data-color="#C0C0C0">ステンレス (7.93)</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="plate-figure" aria-hidden="true">
-                                <svg viewBox="0 0 220 96" class="plate-figure__svg">
-                                    <polygon points="20,70 70,40 200,40 150,70" class="pf-top"/>
-                                    <polygon points="20,70 150,70 150,78 20,78" class="pf-front"/>
-                                    <polygon points="150,70 200,40 200,48 150,78" class="pf-side"/>
-                                    <line x1="12" y1="62" x2="62" y2="32" class="pf-dim"/>
-                                    <line x1="70" y1="30" x2="200" y2="30" class="pf-dim"/>
-                                    <line x1="208" y1="40" x2="208" y2="48" class="pf-dim"/>
-                                    <rect x="20" y="30" width="18" height="15" class="pf-tag pf-tag--a"/>
-                                    <text x="29" y="41.5" class="pf-label">A</text>
-                                    <rect x="126" y="15" width="18" height="15" class="pf-tag pf-tag--b"/>
-                                    <text x="135" y="26.5" class="pf-label">B</text>
-                                    <rect x="172" y="76" width="34" height="15" class="pf-tag pf-tag--t"/>
-                                    <text x="189" y="87.5" class="pf-label">板厚</text>
-                                </svg>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="plate-a">A (mm) <span class="text-accent">※0〜3000</span></label>
-                                <input type="number" id="plate-a" class="form-control" value="1000" min="0" max="3000" step="1">
-                                <div id="plate-a-error" class="error-message" style="display: none;">0〜3000の範囲で入力してください</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="plate-b">B (mm) <span class="text-accent">※0〜10000</span></label>
-                                <input type="number" id="plate-b" class="form-control" value="2000" min="0" max="10000" step="1">
-                                <div id="plate-b-error" class="error-message" style="display: none;">0〜10000の範囲で入力してください</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="plate-t">板厚 (mm) <span class="text-accent">※0.05〜1000</span></label>
-                                <input type="number" id="plate-t" class="form-control" value="1.00" min="0.05" max="1000" step="0.01">
-                                <div id="plate-t-error" class="error-message" style="display: none;">0.05〜1000の範囲で入力してください</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="plate-specific-gravity">比重 (g/cm³) <span class="text-accent">※0.01〜100</span></label>
-                                <input type="number" id="plate-specific-gravity" class="form-control" value="2.70" min="0.01" max="100" step="0.01">
-                                <div id="plate-specific-gravity-error" class="error-message" style="display: none;">0.01〜100の範囲で入力してください</div>
-                            </div>
-                        </section>
-                    </div>
-
-                    <!-- 視覚表示パネル -->
-                    <section class="visual-panel">
-                        <h2 class="panel-title"><i class="fas fa-cube"></i> 3D平板表示</h2>
-
-                        <div class="controls-container">
-                            <div class="control-buttons">
-                                <button id="plate-toggle-rotation" class="control-btn">
-                                    <i class="fas fa-sync"></i> 回転の切替
-                                </button>
-                                <button id="plate-reset-camera" class="control-btn">
-                                    <i class="fas fa-home"></i> カメラリセット
-                                </button>
-                                <button id="plate-toggle-details" class="control-btn">
-                                    <i class="fas fa-info-circle"></i> 詳細表示
-                                </button>
-                            </div>
-
-                            <div class="color-controls">
-                                <div class="color-option">
-                                    <label for="plate-color">平板色:</label>
-                                    <input type="color" id="plate-color" value="#aaaaaa">
-                                </div>
-                                <div class="color-option">
-                                    <label for="plate-bg-color">背景色:</label>
-                                    <input type="color" id="plate-bg-color" value="#f5f5f5">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="plate-3d-container" class="model-container"></div>
-
-                        <div class="tip-container">
-                            <p class="tip">
-                                <i class="fas fa-mouse"></i> マウス操作: ドラッグで回転、スクロールでズーム
-                                <span id="plate-exaggerated-note" class="plate-note" hidden>(板厚は見やすいように厚く描いています)</span>
-                            </p>
-                        </div>
-                    </section>
-
-                    <!-- 計算結果カード -->
-                    <div class="card-area">
-                        <div class="results">
-                            <!-- グラフカード -->
-                            <div class="result-card graph-card fade-in">
-                                <h3 class="result-title graph-title">
-                                    <div><i class="fas fa-chart-line"></i> パラメータ影響グラフ</div>
-                                    <div class="graph-controls">
-                                        <select id="plate-x-axis-param" class="graph-select">
-                                            <option value="a">X軸: A (mm)</option>
-                                            <option value="b">X軸: B (mm)</option>
-                                            <option value="t">X軸: 板厚 (mm)</option>
-                                        </select>
-                                        <select id="plate-y-axis-result" class="graph-select">
-                                            <option value="weight">Y軸: 重量 (kg)</option>
-                                            <option value="area">Y軸: 面積 (m²)</option>
-                                            <option value="volume">Y軸: 体積 (cm³)</option>
-                                        </select>
-                                    </div>
-                                </h3>
-                                <div class="chart-container">
-                                    <canvas id="plate-parameter-chart"></canvas>
-                                </div>
-                            </div>
-
-                            <!-- 重量計算結果 -->
-                            <div class="result-card fade-in">
-                                <h3 class="result-title weight-title">
-                                    <div><i class="fas fa-weight-hanging"></i> 重量計算</div>
-                                    <button class="details-btn" data-modal="plate-weight-modal">詳細</button>
-                                </h3>
-                                <div class="result-value" id="plate-weight-result">—</div>
-                            </div>
-
-                            <!-- 面積計算結果 -->
-                            <div class="result-card fade-in">
-                                <h3 class="result-title area-title">
-                                    <div><i class="fas fa-vector-square"></i> 面積計算</div>
-                                    <button class="details-btn" data-modal="plate-area-modal">詳細</button>
-                                </h3>
-                                <div class="result-value" id="plate-area-result">—</div>
-                            </div>
-
-                            <!-- 体積計算結果 -->
-                            <div class="result-card fade-in">
-                                <h3 class="result-title volume-title">
-                                    <div><i class="fas fa-cube"></i> 体積計算</div>
-                                    <button class="details-btn" data-modal="plate-volume-modal">詳細</button>
-                                </h3>
-                                <div class="result-value" id="plate-volume-result">—</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 詳細計算過程タブ -->
-            <div id="plate-details-tab" class="ptab-content">
-                <div class="calculation-details">
-                    <div class="detail-card">
-                        <h3 class="details-title"><i class="fas fa-vector-square"></i> 面積計算</h3>
-                        <div class="calculation-formula" id="plate-area-detailed"></div>
-                    </div>
-                    <div class="detail-card">
-                        <h3 class="details-title"><i class="fas fa-cube"></i> 体積計算</h3>
-                        <div class="calculation-formula" id="plate-volume-detailed"></div>
-                    </div>
-                    <div class="detail-card">
-                        <h3 class="details-title"><i class="fas fa-weight-hanging"></i> 重量計算</h3>
-                        <div class="calculation-formula" id="plate-weight-detailed"></div>
-                    </div>
-                </div>
-            </div>
+        <div class="vc-pad">
+          <div class="vc-products" id="vc-products" role="group" aria-label="品種"></div>
+          <div class="vc-insides" id="vc-insides" hidden>
+            <span class="vc-insides__label">内径(紙管の外径)を選ぶ</span>
+            <div class="vc-seg" id="vc-inside-choices" role="radiogroup" aria-label="内径"></div>
+          </div>
         </div>
-        </div><!-- /plate-section -->
-    </div>
 
-    <!-- モーダル：重量計算詳細 -->
-    <div id="weight-modal" class="modal" aria-hidden="true" role="dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title"><i class="fas fa-weight-hanging text-primary"></i> 重量計算詳細</h2>
-                <button class="modal-close" aria-label="閉じる">&times;</button>
+        <header>
+          <span class="vc-step-no" aria-hidden="true">2</span>
+          <h2>入力</h2>
+        </header>
+        <div class="vc-pad">
+          <form class="vc-fields" id="vc-form" autocomplete="off" novalidate>
+            <label for="vc-coatu">肉厚</label>
+            <div class="vc-field"><input id="vc-coatu" type="text" name="coatu" inputmode="decimal" spellcheck="false"><span class="vc-unit">mm</span>
+              <small class="vc-err" id="vc-err-coatu" hidden></small></div>
+
+            <label for="vc-vcatu">VC厚</label>
+            <div class="vc-field"><input id="vc-vcatu" type="text" name="vcatu" inputmode="decimal" spellcheck="false"><span class="vc-unit">mm</span>
+              <small class="vc-err" id="vc-err-vcatu" hidden></small></div>
+
+            <label for="vc-inside">内径</label>
+            <div class="vc-field"><input id="vc-inside" type="text" name="inside" inputmode="decimal" spellcheck="false"><span class="vc-unit">mm</span>
+              <small class="vc-err" id="vc-err-inside" hidden></small></div>
+
+            <label for="vc-vclen">VC長さ</label>
+            <div class="vc-field"><input id="vc-vclen" type="text" name="vclen" inputmode="decimal" spellcheck="false"><span class="vc-unit">m</span>
+              <small class="vc-hint" id="vc-hint-vclen">空欄なら肉厚から計算。入れてあればその長さで枚数を出し、肉厚が空なら肉厚を逆算します。</small>
+              <small class="vc-err" id="vc-err-vclen" hidden></small></div>
+
+            <label for="vc-prolen">経寸丈</label>
+            <div class="vc-field"><input id="vc-prolen" type="text" name="prolen" inputmode="decimal" spellcheck="false"><span class="vc-unit">mm</span>
+              <small class="vc-hint">任意。入れると、その丈での枚数も出します。</small></div>
+
+            <div class="vc-go">
+              <button class="btn btn--primary btn--lg" type="submit" id="vc-run">計算</button>
+              <button class="btn" type="button" id="vc-open-quick">早見表を別の窓で開く</button>
             </div>
-            <div class="modal-body">
-                <div class="calculation-section">
-                    <h3 class="calculation-title"><i class="fas fa-ruler-combined"></i> 寸法の計算</h3>
-                    <div class="calculation-formula">
-                        <div>大円柱半径 = (肉厚 × 2 + 内径) / 2</div>
-                        <div id="modal-large-radius"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>小円柱半径 = 内径 / 2</div>
-                        <div id="modal-small-radius"></div>
-                    </div>
-                </div>
-                <div class="calculation-section">
-                    <h3 class="calculation-title"><i class="fas fa-cube"></i> 体積の計算</h3>
-                    <div class="calculation-formula">
-                        <div>大円柱体積 = π × 大円柱半径² × コイル幅</div>
-                        <div id="modal-large-volume"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>小円柱体積 = π × 小円柱半径² × コイル幅</div>
-                        <div id="modal-small-volume"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>コイル体積 = 大円柱体積 - 小円柱体積</div>
-                        <div id="modal-coil-volume"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>コイル体積(cm³) = コイル体積(mm³) / 1000</div>
-                        <div id="modal-coil-volume-cm"></div>
-                    </div>
-                </div>
-                <div class="calculation-section">
-                    <h3 class="calculation-title"><i class="fas fa-balance-scale"></i> 重量の計算</h3>
-                    <div class="calculation-formula">
-                        <div>重量(g) = 体積(cm³) × 比重(g/cm³)</div>
-                        <div id="modal-weight-g"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>重量(kg) = 重量(g) / 1000</div>
-                        <div id="modal-weight-kg"></div>
-                    </div>
-                </div>
-            </div>
+          </form>
         </div>
+      </section>
     </div>
+  </section>
 
-    <!-- モーダル：長さ計算詳細 -->
-    <div id="length-modal" class="modal" aria-hidden="true" role="dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title"><i class="fas fa-ruler-horizontal text-secondary"></i> 長さ計算詳細</h2>
-                <button class="modal-close" aria-label="閉じる">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="calculation-section">
-                    <h3 class="calculation-title"><i class="fas fa-square"></i> 断面積の計算</h3>
-                    <div class="calculation-formula">
-                        <div>断面積 = π × (大円柱半径² - 小円柱半径²)</div>
-                        <div id="modal-cross-section"></div>
-                    </div>
-                </div>
-                <div class="calculation-section">
-                    <h3 class="calculation-title"><i class="fas fa-ruler"></i> 長さの計算</h3>
-                    <div class="calculation-formula">
-                        <div>面積 = コイル体積(mm³) / 板厚(mm)</div>
-                        <div id="modal-length-area"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>長さ(mm) = 面積(mm²) / コイル幅(mm)</div>
-                        <div id="modal-length-mm"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>長さ(m) = 長さ(mm) / 1000</div>
-                        <div id="modal-length-m"></div>
-                    </div>
-                </div>
-            </div>
+  <!-- ==============================================================
+     早見表(VBA `UFquick`)── 計算と同じ式から出す。A4 横で印刷
+     ============================================================== -->
+  <section class="tabpanel" data-panel="quick" id="panel-quick" role="tabpanel"
+           aria-labelledby="tab-quick" hidden>
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <p class="lead" id="vc-quick-note">長さは VC品種 の VC厚 から式で出しています。</p>
+      <button class="btn" type="button" id="vc-print">印刷(A4 横)</button>
+    </div>
+    <section class="vc-quick" aria-labelledby="vc-quick-title">
+      <header class="vc-quick__head">
+        <h2 id="vc-quick-title">VCフィルム長さ早見表</h2>
+        <span class="vc-quick__rev" id="vc-quick-rev"></span>
+      </header>
+      <div class="vc-quick__blocks" id="vc-quick-blocks">
+        <p class="lead">読み込んでいます…</p>
+      </div>
+      <p class="vc-quick__foot">肉厚 mm / 長さ m</p>
+    </section>
+
+    <p class="lead vc-not-bare" style="margin-top:var(--sp-2)">
+      早見表のマスを足すのは <a href="?tab=settings" data-vc-tab="settings">設定</a> の面(管理者)です。
+    </p>
+  </section>
+
+  <!-- ==============================================================
+     コイル・平板 ── 別に作られたツールを枠で載せる(見た目を混ぜない)。
+     計算はブラウザの中だけ(マスタもサーバも使わない)
+     ============================================================== -->
+  <section class="tabpanel" data-panel="coil" id="panel-coil" role="tabpanel"
+           aria-labelledby="tab-coil" hidden>
+    <iframe class="vc-coilframe" id="vc-coil-frame" title="コイル・平板 重量計算"
+            data-src="coil/index.html"></iframe>
+  </section>
+
+  <!-- ==============================================================
+     設定 ── マスタの置き場所と、早見表のマスをまとめて作る(管理者)
+
+     置き場所は参照設定の「VC計算マスタの置き場所」と同じ設定です
+     (ここで変えても、参照設定で変えても同じ)。変えるには管理者パスワード。
+     ============================================================== -->
+  <section class="tabpanel" data-panel="settings" id="panel-settings" role="tabpanel"
+           aria-labelledby="tab-settings" hidden>
+    <section class="card vc-place" id="vc-place">
+      <div class="card__head">
+        <h2>マスタの置き場所</h2>
+        <span class="lead">品種・定尺・早見表を読むファイル(VC計算マスタ)</span>
+      </div>
+      <div class="msg msg--info" id="vc-place-status">読み込んでいます…</div>
+
+      <table class="list vc-place__names" style="margin-top:var(--sp-2)">
+        <thead><tr><th>優先</th><th>ファイル名</th><th>いま</th><th>どういう名前か</th></tr></thead>
+        <tbody id="vc-place-names"></tbody>
+      </table>
+      <p class="lead">
+        同じフォルダで <b>上から順に</b>探します。1 があれば 1、無ければ 2、どちらも無ければ
+        初めて使うときに 1 を VBA の初期値で作ります。<b>2つともあると 2 は読みません</b>
+        ── 日報管理ツール・vc-calculator と1つのマスタを使うなら、フォルダには1つだけ置いてください。
+      </p>
+
+      <div class="out-dir">
+        <div>いま読むファイル: <code class="out-dir__path" id="vc-place-used"></code></div>
+        <div class="lead">フォルダの決まり方: <span id="vc-place-origin"></span></div>
+      </div>
+      <div class="row vc-place__edit">
+        <label for="vc-place-dir">置き場所(フォルダ)</label>
+        <input id="vc-place-dir" type="text" size="48" autocomplete="off" spellcheck="false">
+        <label for="vc-place-pw" id="vc-place-pw-label" hidden>管理者パスワード</label>
+        <input id="vc-place-pw" type="password" size="12" hidden>
+        <button class="btn" type="button" id="vc-place-save">置き場所を保存</button>
+        <button class="btn" type="button" id="vc-place-reset">既定に戻す</button>
+      </div>
+      <div class="msg" id="vc-place-note" hidden></div>
+      <p class="lead">
+        共有のフォルダ(\\サーバ\共有\…)を指せば、日報管理ツールの「VC計算マスタの置き場所」と
+        同じマスタを読みます。マスタは<b>写してから読む</b>ので、読んでいるあいだも共有のファイルを
+        掴みません(ほかの人が差し替えられます)。中身を直すのは「マスタの表」の面です。
+      </p>
+    </section>
+
+    <!-- 早見表の品種(管理者)。**マスタ管理と同じ鍵**
+       ── 「1行消すがないと追加したVCが永遠に消せない」「早見表に追加でVCを足すのも
+       わかりにくい」「固定値(式なし)に知らない間になっていた」(v3.97.0)。
+       マスタは VC品種 ← 早見表ブロック ← 早見表値 の鎖で、マスタ管理では子から
+       1行ずつ消すしかなかった。ここで鎖ごと1回で足す・消す・切り替える -->
+    <section class="card vc-grid" id="vc-grid" style="margin-top:var(--sp-3)">
+      <div class="card__head"><h2>早見表の品種(枠とマス)</h2><span class="lead">管理者</span></div>
+      <p class="lead">早見表は、品種ごとの<b>枠</b>と、その中の<b>マス</b>(内径 × 肉厚)でできています。
+        長さの出し方は枠ごとに2つ ──
+        <b>式</b>: 枠に結びつけた VC品種 の VC厚 から毎回出す(VC厚 を直せば早見表も変わる)/
+        <b>固定値</b>: マスに入れた長さをそのまま出す(VC品種と結びついていない枠)。
+        足す・消す・切り替えるは、ここで<b>1回ずつ</b>済みます(「マスタの表」で1行ずつ消さなくてよい)。</p>
+      <div class="row vc-grid__key">
+        <label for="vc-grid-password" id="vc-grid-password-label">管理者パスワード</label>
+        <input id="vc-grid-password" type="password" size="14" autocomplete="off">
+        <!-- 1度開ければ、閉めるか終了するまで続けて直せる(「マスタの表」と同じ鍵) -->
+        <button class="btn" type="button" id="vc-grid-unlock">鍵を開ける</button>
+        <button class="btn" type="button" id="vc-grid-relock" hidden>鍵を閉める</button>
+        <span class="lead" id="vc-grid-lock"></span>
+      </div>
+      <div class="msg" id="vc-grid-note" hidden></div>
+
+      <h3 class="vc-grid__title">いまの枠</h3>
+      <div class="vc-blocks-wrap">
+        <table class="list vc-blocks">
+          <thead><tr><th>枠(品種)</th><th>長さの出し方</th><th>内径</th><th>肉厚</th>
+            <th class="num">マス</th><th></th></tr></thead>
+          <tbody id="vc-blocks"></tbody>
+        </table>
+      </div>
+
+      <h3 class="vc-grid__title">早見表に品種を足す</h3>
+      <p class="lead">VC品種・枠・マスを<b>1回で</b>足します。新しい VC品種 なら VC厚 を入れると、
+        計算の品種一覧にも出ます。</p>
+      <div class="vc-grid__form" id="vc-add">
+        <label for="vc-add-product">VC品種</label>
+        <select id="vc-add-product"></select>
+        <span class="vc-grid__label" id="vc-add-new-label">新しい VC品種</span>
+        <div class="vc-grid__inline" id="vc-add-new">
+          <label>品種名 <input id="vc-add-name" type="text" size="18" autocomplete="off"></label>
+          <label>VC厚 <input id="vc-add-vcatu" type="text" size="7" inputmode="decimal"
+                             autocomplete="off" placeholder="0.10 / 100"
+                             title="mm なら 0.10、μm なら 100(どちらでも同じ厚さ)"> mm か μm</label>
+          <label>業者名 <input id="vc-add-vendor" type="text" size="10" autocomplete="off"></label>
         </div>
-    </div>
-
-    <!-- モーダル：巻き数計算詳細 -->
-    <div id="windings-modal" class="modal" aria-hidden="true" role="dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title"><i class="fas fa-sync text-accent"></i> 巻き数計算詳細</h2>
-                <button class="modal-close" aria-label="閉じる">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="calculation-section">
-                    <h3 class="calculation-title"><i class="fas fa-layer-group"></i> 巻き数の計算</h3>
-                    <div class="calculation-formula">
-                        <div>巻き数 = 肉厚(mm) / 板厚(mm)</div>
-                        <div id="modal-windings"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>※巻き数は整数値に四捨五入しています</div>
-                    </div>
-                </div>
-            </div>
+        <span class="vc-grid__label">長さ</span>
+        <div class="vc-grid__inline" role="radiogroup" aria-label="長さの出し方">
+          <label class="check"><input type="radio" name="vc-add-length" value="formula" checked>
+            式で出す(ふつうはこちら。VC厚 を直せば早見表も変わる)</label>
+          <label class="check"><input type="radio" name="vc-add-length" value="fixed">
+            固定値(紙の数に合わせたいとき。足すときだけ VC厚 から計算して入れる)</label>
         </div>
-    </div>
+        <label for="vc-add-insides">内径 mm</label>
+        <input id="vc-add-insides" type="text" autocomplete="off" placeholder="例: 87, 95">
+        <label for="vc-add-thicknesses">肉厚 mm</label>
+        <input id="vc-add-thicknesses" type="text" autocomplete="off" placeholder="例: 5, 8, 10, 12, 14">
+        <label for="vc-add-block">枠の名前</label>
+        <input id="vc-add-block" type="text" autocomplete="off" placeholder="空なら VC品種の名前">
+        <label for="vc-add-tone">枠の色</label>
+        <select id="vc-add-tone">
+          <option value="">まだ使っていない色</option>
+        </select>
+      </div>
+      <div class="row"><button class="btn btn--primary" type="button" id="vc-add-make">早見表に足す</button></div>
 
-    <!-- モーダル：平板 重量計算詳細 -->
-    <div id="plate-weight-modal" class="modal" aria-hidden="true" role="dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title"><i class="fas fa-weight-hanging text-primary"></i> 重量計算詳細(平板)</h2>
-                <button class="modal-close" aria-label="閉じる">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="calculation-section">
-                    <h3 class="calculation-title"><i class="fas fa-cube"></i> 体積の計算</h3>
-                    <div class="calculation-formula">
-                        <div>体積(mm³) = A × B × 板厚</div>
-                        <div id="plate-modal-volume-mm" class="plate-modal-value"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>体積(cm³) = 体積(mm³) / 1000</div>
-                        <div id="plate-modal-volume-cm" class="plate-modal-value"></div>
-                    </div>
-                </div>
-                <div class="calculation-section">
-                    <h3 class="calculation-title"><i class="fas fa-balance-scale"></i> 重量の計算</h3>
-                    <div class="calculation-formula">
-                        <div>重量(g) = 体積(cm³) × 比重(g/cm³)</div>
-                        <div id="plate-modal-weight-g" class="plate-modal-value"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>重量(kg) = 重量(g) / 1000</div>
-                        <div id="plate-modal-weight-kg" class="plate-modal-value"></div>
-                    </div>
-                </div>
-            </div>
+      <h3 class="vc-grid__title">選んだ枠を直す</h3>
+      <!-- **長さは式で出す。** 計算品種のある枠は VC厚 から毎回出すので入れない。
+         計算品種の無い枠(固定値)は VC厚 を1つ決めれば、同じ式で出して入れる
+         ── 「計算値を当ててくれればいいのでは?」(v3.96.0) -->
+      <div class="vc-grid__form">
+        <label for="vc-grid-block">枠(品種)</label>
+        <select id="vc-grid-block"></select>
+        <span class="vc-grid__label">長さの出し方</span>
+        <div class="vc-grid__inline">
+          <span id="vc-edit-kind"></span>
+          <select id="vc-edit-source" aria-label="長さの出し方を変える"></select>
+          <button class="btn" type="button" id="vc-edit-source-save">切り替える</button>
         </div>
-    </div>
-
-    <!-- モーダル：平板 面積計算詳細 -->
-    <div id="plate-area-modal" class="modal" aria-hidden="true" role="dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title"><i class="fas fa-vector-square text-secondary"></i> 面積計算詳細(平板)</h2>
-                <button class="modal-close" aria-label="閉じる">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="calculation-section">
-                    <h3 class="calculation-title"><i class="fas fa-vector-square"></i> 面積の計算</h3>
-                    <div class="calculation-formula">
-                        <div>面積(mm²) = A × B</div>
-                        <div id="plate-modal-area-mm" class="plate-modal-value"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>面積(m²) = 面積(mm²) / 1,000,000</div>
-                        <div id="plate-modal-area-m" class="plate-modal-value"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>※片面の面積です(板厚の側面は含みません)</div>
-                    </div>
-                </div>
-            </div>
+        <span class="vc-grid__label">いまのマス</span>
+        <div class="vc-edit-cells">
+          <div class="vc-grid__inline">内径 <span id="vc-edit-insides"></span></div>
+          <div class="vc-grid__inline">肉厚 <span id="vc-edit-thicknesses"></span></div>
+          <p class="lead">× を押すと、その内径の<b>行</b>(肉厚の<b>列</b>)のマスを消します。</p>
         </div>
-    </div>
-
-    <!-- モーダル：平板 体積計算詳細 -->
-    <div id="plate-volume-modal" class="modal" aria-hidden="true" role="dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title"><i class="fas fa-cube text-accent"></i> 体積計算詳細(平板)</h2>
-                <button class="modal-close" aria-label="閉じる">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="calculation-section">
-                    <h3 class="calculation-title"><i class="fas fa-cube"></i> 体積の計算</h3>
-                    <div class="calculation-formula">
-                        <div>体積(mm³) = 面積(mm²) × 板厚(mm)</div>
-                        <div id="plate-modal-volume-mm2" class="plate-modal-value"></div>
-                    </div>
-                    <div class="calculation-formula">
-                        <div>体積(cm³) = 体積(mm³) / 1000</div>
-                        <div id="plate-modal-volume-cm2" class="plate-modal-value"></div>
-                    </div>
-                </div>
-            </div>
+        <label for="vc-grid-insides">足す内径 mm</label>
+        <input id="vc-grid-insides" type="text" autocomplete="off" placeholder="例: 87, 95">
+        <label for="vc-grid-thicknesses">足す肉厚 mm</label>
+        <input id="vc-grid-thicknesses" type="text" autocomplete="off" placeholder="例: 5, 8, 10, 12, 14">
+        <span class="vc-grid__label">長さ</span>
+        <div class="vc-grid__length">
+          <p class="lead" id="vc-grid-length-note"></p>
+          <div id="vc-grid-length-fixed" hidden>
+            <label for="vc-grid-length">VC厚 を</label>
+            <select id="vc-grid-length"></select>
+            <span id="vc-grid-vcatu-wrap" hidden>
+              <input id="vc-grid-vcatu" type="text" size="7" inputmode="decimal"
+                     autocomplete="off" placeholder="0.10 / 100"
+                     title="mm なら 0.10、μm なら 100(どちらでも同じ厚さ)"> mm か μm
+            </span>
+            <label class="check"><input type="checkbox" id="vc-grid-fill" checked>
+              長さが空のマスにも入れる(すでにあるマス)</label>
+            <label class="check"><input type="checkbox" id="vc-grid-overwrite">
+              入っている長さも計算値で置き換える</label>
+          </div>
         </div>
-    </div>
+      </div>
+      <div class="row vc-grid__actions">
+        <button class="btn btn--primary" type="button" id="vc-grid-make">マスを足す(長さも入れる)</button>
+        <button class="btn btn--danger" type="button" id="vc-edit-delete">この枠を消す</button>
+      </div>
 
-    <script src="coil/aluminum-coil-calculator.js"></script>
-    <script src="coil/3d-coil-viewer.js"></script>
-    <script src="coil/coil-init.js"></script>
-    <script src="coil/coil-parameter-chart.js"></script>
-    <script src="coil/plate-calculator.js"></script>
-    <script src="coil/plate-3d-viewer.js"></script>
-    <script src="coil/plate-init.js"></script>
-    <script src="coil/plate-parameter-chart.js"></script>
-    <script src="coil/shape-switch.js"></script>
-    <script src="coil/print-sheet.js"></script>
-    <!-- 画面に収める(形状の切替が済んでから、いまの中身の高さをはかる) -->
-    <script src="coil/coil-fit.js"></script>
-    <!-- 印刷するときだけ出す計算書(print-sheet.js が中身を入れる) -->
-    <section id="print-sheet" class="print-sheet" aria-hidden="true"></section>
+      <h3 class="vc-grid__title">VC品種を消す</h3>
+      <p class="lead">VC品種を、<b>その品種を使っている早見表の枠・マス・内径の選択肢ごと</b>消します
+        (計算の品種一覧からも消えます)。何が一緒に消えるかは下に出ます。</p>
+      <div class="row">
+        <select id="vc-del-product" aria-label="消す VC品種"></select>
+        <button class="btn btn--danger" type="button" id="vc-del-product-go">VC品種を消す</button>
+      </div>
+      <p class="lead" id="vc-del-product-note"></p>
+      <p class="lead">消した中身は変更履歴(「マスタの表」→ 変更履歴)に残り、
+        その日の最初に書く前の控えもマスタの隣(backup)にあります。</p>
+    </section>
+
+    <!-- 管理者パスワード(この端末だけ変える。平文では持たない) -->
+    <section class="card vc-admin" id="vc-admin" style="margin-top:var(--sp-3)">
+      <div class="card__head"><h2>管理者パスワード</h2><span class="lead" id="vc-admin-origin"></span></div>
+      <p class="lead">マスタの置き場所・早見表の品種・マスタの表を直すときの鍵です(誤って直さないための関門)。
+        変えると<b>この端末だけ</b>に効きます。配布のときに決めた値(<code>make_dist.bat --admin-password</code>)が
+        あればそれ、無ければ日報管理ツールと同じ既定の値です。</p>
+      <div class="vc-grid__form">
+        <label for="vc-admin-current">いまのパスワード</label>
+        <input id="vc-admin-current" type="password" size="16" autocomplete="off">
+        <label for="vc-admin-new">新しいパスワード</label>
+        <input id="vc-admin-new" type="password" size="16" autocomplete="new-password">
+        <label for="vc-admin-confirm">新しいパスワード(確認)</label>
+        <input id="vc-admin-confirm" type="password" size="16" autocomplete="new-password">
+      </div>
+      <div class="row" style="margin-top:var(--sp-2)">
+        <button class="btn" type="button" id="vc-admin-change">パスワードを変える</button>
+        <button class="btn" type="button" id="vc-admin-reset" hidden>配布の既定に戻す</button>
+      </div>
+      <div class="msg" id="vc-admin-note" hidden></div>
+    </section>
+  </section>
+
+  </div>
+
+  <!-- ==============================================================
+     マスタの表 ── VC計算マスタの表を見る・1行ずつ直す(管理者)
+     日報管理ツールの マスタ管理 →「VC計算マスタ」に当たる所(vc_tables.js)
+     ============================================================== -->
+  <section class="tabpanel" data-panel="master" id="panel-master" role="tabpanel"
+           aria-labelledby="tab-master" hidden>
+    <section class="card vc-tables-card">
+      <div class="card__head">
+        <h2>マスタの表</h2>
+        <span class="lead" id="vc-tables-source"></span>
+      </div>
+      <div class="row vc-grid__key">
+        <label for="vc-tables-password" id="vc-tables-password-label">管理者パスワード</label>
+        <input id="vc-tables-password" type="password" size="14" autocomplete="off">
+        <button class="btn" type="button" id="vc-tables-unlock">鍵を開ける</button>
+        <button class="btn" type="button" id="vc-tables-relock" hidden>鍵を閉める</button>
+        <span class="lead" id="vc-tables-lock"></span>
+      </div>
+      <div class="row vc-tables__bar">
+        <label for="vc-tables-pick">表</label>
+        <select id="vc-tables-pick"></select>
+        <input id="vc-tables-q" type="text" size="18" autocomplete="off" placeholder="絞り込み(どの列でも)">
+        <button class="btn" type="button" id="vc-tables-reload">読み直す</button>
+      </div>
+      <p class="lead" id="vc-tables-note"></p>
+      <div class="msg" id="vc-tables-msg" hidden></div>
+      <div class="vc-tables-wrap"><table class="list vc-tables" id="vc-tables-grid"></table></div>
+      <p class="lead" id="vc-tables-more"></p>
+      <p class="lead">直すと<b>変更履歴に1行残り、更新番号が上がります</b>(同じマスタを読んでいるほかの端末も、
+        次の操作で新しい値になります)。その日の最初に書く前に、マスタの隣(backup)へ控えを取ります。
+        早見表の品種を足す・消すは「設定」の面のほうが1回で済みます。</p>
+    </section>
+  </section>
+
+  </div>
+</div>
+</main>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
 </body>
 </html>

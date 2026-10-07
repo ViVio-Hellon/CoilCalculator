@@ -1,4 +1,4 @@
-//! コイル・平板 重量計算ツール デスクトップ版の外枠
+//! VC長さ・コイル平板 計算ツール デスクトップ版の外枠
 //!
 //! 【役割の分け方】(各言語が得意なことをする)
 //!
@@ -35,12 +35,12 @@ use instance::{Refusal, Take};
 
 /// 画面の宛先の名前
 const SCHEME: &str = "app";
-const TITLE: &str = "コイル・平板 重量計算ツール";
+const TITLE: &str = "VC長さ・コイル平板 計算ツール";
 /// 外枠の版。`config/app.json`・`tauri.conf.json` と同じ(試験が突き合わせる)
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// 操作説明書の頁(`app/static/manual/`)。ここに無い名前は開かない
-const MANUAL_PAGES: [&str; 3] = ["index", "coil", "plate"];
+const MANUAL_PAGES: [&str; 4] = ["index", "vc", "coil", "plate"];
 
 /// 終わったときの番号(ブラウザ版の `start_app.py` と同じ)
 const EXIT_OTHER_RUNNING: i32 = 3;
@@ -198,6 +198,25 @@ fn open_manual(app: AppHandle, page: String) -> Result<(), String> {
         .map_err(|e| format!("操作説明書の窓を開けませんでした: {e}"))
 }
 
+/// 早見表だけの窓(VBA `UFquick` はモードレス。計算の画面と並べて見る)。
+/// 面の札も見出しも出さない(`index.html?window=quick&tab=quick`)。もう開いていれば前に出す
+#[tauri::command]
+fn open_quick(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("quick") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        return window.set_focus().map_err(|e| e.to_string());
+    }
+    WebviewWindowBuilder::new(&app, "quick", WebviewUrl::External(app_url("/index.html?window=quick&tab=quick")))
+        .title(format!("VCフィルム長さ早見表 ─ {TITLE} v{VERSION}"))
+        .inner_size(1280.0, 860.0)
+        .min_inner_size(640.0, 480.0)
+        .on_navigation(|url| is_app_url(url))
+        .build()
+        .map(|_| ())
+        .map_err(|e| format!("早見表の窓を開けませんでした: {e}"))
+}
+
 /// 錠を取れなかった。**後から開いたこちらが止まる。**
 fn refuse(app: &tauri::AppHandle, refusal: Refusal) {
     let message = match refusal {
@@ -315,10 +334,10 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![open_manual])
+        .invoke_handler(tauri::generate_handler![open_manual, open_quick])
         .on_window_event(move |window, event| {
             if window.label() != "main" {
-                return; // 操作説明書の窓は、確かめずにその窓だけ閉じる
+                return; // 操作説明書・早見表の窓は、確かめずにその窓だけ閉じる
             }
             match event {
                 // × は「終了」と同じ確かめを通る

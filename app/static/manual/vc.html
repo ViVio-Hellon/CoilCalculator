@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>操作説明書 VC長さ計算 ─ VC長さ・コイル平板 計算ツール</title>
+<link rel="stylesheet" href="manual.css">
+<script src="manual.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="top__inner">
+    <p class="top__title">VC長さ・コイル平板 計算ツール 操作説明書</p>
+    <span class="top__version">この説明書の版: <span data-manual-version>v2.0.0</span></span>
+    <span class="live" id="live-version" hidden></span>
+    <nav class="nav" aria-label="説明書の頁">
+      <a href="index.html">はじめに</a>
+      <a href="vc.html" aria-current="page">VC長さ計算</a>
+      <a href="coil.html">コイル</a>
+      <a href="plate.html">平板</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h1>VC長さ計算の使い方</h1>
+    <p class="lead">紙管に巻かれた VC フィルムの<b>肉厚(巻いてある厚み)を測って入れると、残りの長さ(m)</b>と、定尺(1×2・2×4・5×10)ごとに<b>何枚の製品に貼れるか</b>が出ます。VBA の「VC計算」「早見表」の画面と同じ式・同じ丸めです(日報管理ツールの「VC長さ計算」と同じもの)。</p>
+    <ul class="toc">
+      <li><a href="#calc">計算の面</a></li>
+      <li><a href="#steps">計算のしかた</a></li>
+      <li><a href="#explain">図と計算の経過</a></li>
+      <li><a href="#quick">早見表</a></li>
+      <li><a href="#settings">設定(マスタの置き場所・早見表の品種)</a></li>
+      <li><a href="#master">マスタの表</a></li>
+      <li><a href="#key">鍵と管理者パスワード</a></li>
+      <li><a href="#share">マスタの共有と、読めないとき</a></li>
+      <li><a href="#formula">計算式</a></li>
+    </ul>
+  </section>
+
+  <section id="calc">
+    <h2>計算の面</h2>
+    <figure>
+      <img src="img/vc-overview.jpg" alt="VC長さ計算の計算の面。番号の札で各部を示している" width="1600" height="950">
+      <figcaption>番号は下の表と同じです。</figcaption>
+    </figure>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>番号</th><th>名前</th><th>すること</th></tr></thead>
+        <tbody>
+          <tr><td><span class="num">1</span></td><td>面の札</td><td>計算 / 早見表 / コイル・平板 / 設定 / マスタの表 を切り替えます。最後に見ていた面を覚えます</td></tr>
+          <tr><td><span class="num">2</span></td><td>品種</td><td>押すと、その品種の VC厚・内径が欄に入ります(品種の一覧は VC計算マスタから)</td></tr>
+          <tr><td><span class="num">3</span></td><td>内径を選ぶ</td><td>同じビニールで内径(紙管の外径)が2種類ある品種のときだけ出ます。選ぶまで内径は空です</td></tr>
+          <tr><td><span class="num">4</span></td><td>入力欄</td><td>肉厚・VC厚・内径・VC長さ・経寸丈(任意)。計算で入った欄は色が付きます</td></tr>
+          <tr><td><span class="num">5</span></td><td>計算</td><td>押すと計算します(Enter でも)。「早見表を別の窓で開く」で早見表だけの窓が開きます</td></tr>
+          <tr><td><span class="num">6</span></td><td>VC長さ</td><td>残りの長さ(m、小数1桁)</td></tr>
+          <tr><td><span class="num">7</span></td><td>枚数</td><td>定尺ごとの枚数(VC長さ ÷ 製品の丈)。経寸丈を入れると、その丈での枚数も出ます</td></tr>
+          <tr><td><span class="num">8</span></td><td>図と計算の経過</td><td>巻いたロールの図と、式に数字を入れた途中の計算</td></tr>
+          <tr><td><span class="num">9</span></td><td>版・操作説明・終了</td><td>いま使っている版と、この説明書(<a href="index.html#version">版の見方</a>)。「終了」はブラウザ版だけ</td></tr>
+          <tr><td><span class="num">10</span></td><td>背景の切替</td><td>ライト / ダーク</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="steps">
+    <h2>計算のしかた</h2>
+    <ol class="steps">
+      <li><span class="num">2</span> で<b>品種</b>を押します。VC厚と内径が入ります。</li>
+      <li><span class="num">3</span> が出たら、<b>内径</b>(小 87.0 / 大 95.0 など)を押します。</li>
+      <li><span class="num">4</span> の<b>肉厚</b>に、測った厚み(mm)を入れます。</li>
+      <li><span class="num">5</span> の<b>計算</b>を押すと、<span class="num">6</span> VC長さ と <span class="num">7</span> 枚数 が出ます。</li>
+    </ol>
+    <div class="note"><b>長さから肉厚を出す(逆算)</b>肉厚を空にして VC長さ に長さを入れて「計算」を押すと、肉厚を逆算します(マスタの「肉厚の逆算」が 1 のとき)。VC長さ に手で入れた長さは消しません ── その長さで枚数を出します。</div>
+    <div class="note"><b>入力を直したとき</b>結果は薄くなり「古い結果」と出ます。もう一度「計算」を押すと出し直します。肉厚を直すと、前に計算で入った VC長さ は消えます(古い長さが残らないように)。</div>
+    <figure class="narrow">
+      <img src="img/vc-error.png" alt="肉厚かVC長さを入れてくださいという知らせが出た結果の欄" width="1120" height="812">
+      <figcaption>足りない欄があるときは、理由が赤く出て、その欄に移ります。</figcaption>
+    </figure>
+  </section>
+
+  <section id="explain">
+    <h2>図と計算の経過</h2>
+    <p>計算すると、結果の下に<b>巻いたロールの図</b>と<b>計算の経過</b>(式・数字を入れた式・答え)が出ます。経過の段にマウスを当てると、図のその部分が光ります。</p>
+    <figure>
+      <img src="img/vc-explain.png" alt="ロールの図と計算の経過。外径の段にマウスを当てて、図の外径が光っている" width="1094" height="513">
+      <figcaption>「外径」の段にマウスを当てたところ。</figcaption>
+    </figure>
+  </section>
+
+  <section id="quick">
+    <h2>早見表</h2>
+    <p>肉厚(列)と内径(行)から長さ(m)を引く表です。計算と<b>同じ式</b>で出しています(整数への丸めは マスタの「早見表の丸め」= 切り捨て / 四捨五入)。</p>
+    <figure>
+      <img src="img/vc-quick.jpg" alt="早見表の面。品種ごとに色の付いた枠が並ぶ" width="1600" height="950">
+      <figcaption><span class="num">1</span> 印刷(A4 横)/ <span class="num">2</span> 品種ごとの枠(色は紙の早見表と同じ)/ <span class="num">3</span> マスタの更新番号</figcaption>
+    </figure>
+    <ul>
+      <li><b>印刷</b>: 「印刷(A4 横)」を押します。枠の途中では紙を切りません。</li>
+      <li><b>別の窓</b>: 計算の面の「早見表を別の窓で開く」で、早見表だけの窓が開きます(計算と並べて見られます)。</li>
+      <li>枠の左に「式・VC厚 0.1」とあれば VC品種 の VC厚 から出しています。「固定値(打った長さ)」はマスに入れた長さをそのまま出しています(<a href="#settings">設定</a>で切り替えられます)。</li>
+    </ul>
+  </section>
+
+  <section id="settings">
+    <h2>設定</h2>
+    <h3>マスタの置き場所</h3>
+    <p>品種・定尺・早見表は <b>VC計算マスタ</b>(<code>VC計算マスタ.sqlite3</code>)から読みます。どのフォルダのどのファイルを読んでいるかが出ます。</p>
+    <figure>
+      <img src="img/vc-place.png" alt="マスタの置き場所。2つのファイル名の優先と、いま読んでいるファイル" width="1576" height="343">
+      <figcaption>同じフォルダで上から順に探します。2つともあると下は読みません。</figcaption>
+    </figure>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>フォルダの決まり方</th><th>いつ</th></tr></thead>
+        <tbody>
+          <tr><td>この端末で決めたフォルダ</td><td>この面で保存したとき(この端末だけ。<code>%LOCALAPPDATA%\CoilCalculator\settings.json</code>)</td></tr>
+          <tr><td>配布のときに決めたフォルダ</td><td>配る人が <code>make_dist.bat --vc-master-dir \\サーバ\共有\…</code> で決めたとき</td></tr>
+          <tr><td>この端末の作業フォルダ(既定)</td><td>どちらも無いとき(<code>%LOCALAPPDATA%\CoilCalculator\master</code>。初めて使うときに VBA の初期値で作ります)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>フォルダを入れて「置き場所を保存」を押します(管理者パスワードが要ります)。「既定に戻す」で、配布のときのフォルダ(無ければ作業フォルダ)に戻ります。</p>
+
+    <h3>早見表の品種(枠とマス)</h3>
+    <figure>
+      <img src="img/vc-grid.jpg" alt="早見表の品種の欄。鍵・いまの枠・品種を足す・選んだ枠を直す・VC品種を消す" width="1576" height="1493">
+      <figcaption><span class="num">1</span> 鍵 / <span class="num">2</span> いまの枠 / <span class="num">3</span> 品種を足す / <span class="num">4</span> 選んだ枠を直す / <span class="num">5</span> VC品種を消す</figcaption>
+    </figure>
+    <ul>
+      <li><b>品種を足す</b>: VC品種(新しくても可)・枠・マス(内径 × 肉厚)を1回で足します。新しい VC品種 は計算の品種一覧にも出ます。</li>
+      <li><b>選んだ枠を直す</b>: マス(内径・肉厚)を足す、× で行・列を消す、長さの出し方(式 / 固定値)を切り替える、枠を消す。</li>
+      <li><b>VC品種を消す</b>: その品種を使っている枠・マス・内径の選択肢ごと消します。何が一緒に消えるかが先に出ます。</li>
+    </ul>
+    <p>VC厚 は mm(0.10)でも μm(100)でも入れられます。</p>
+
+    <h3>管理者パスワード</h3>
+    <figure class="narrow">
+      <img src="img/vc-admin.png" alt="管理者パスワードを変える欄" width="1576" height="232">
+      <figcaption>変えると、この端末だけに効きます。</figcaption>
+    </figure>
+  </section>
+
+  <section id="master">
+    <h2>マスタの表</h2>
+    <p>VC計算マスタの表(VC品種・VC内径選択肢・枚数定尺・早見表ブロック・早見表値・アプリ設定・変更履歴)を見ます。<a href="#key">鍵を開ける</a>と、1行ずつ直せます。</p>
+    <figure>
+      <img src="img/vc-master.jpg" alt="マスタの表。VC品種の表で、1行の VC厚 を直しているところ" width="1600" height="950">
+      <figcaption><span class="num">1</span> 鍵 / <span class="num">2</span> 表を選ぶ / <span class="num">3</span> 絞り込み(どの列でも)/ <span class="num">4</span> 直した行(色が付く)/ <span class="num">5</span> 保存 / <span class="num">6</span> 行を足す</figcaption>
+    </figure>
+    <ul>
+      <li>直した行は色が付き、「保存」が押せるようになります。押すとマスタに書き、計算・早見表にもすぐ効きます。</li>
+      <li>見出しを押すと並べ替えます(数は数として)。一度に出すのは 200 行までで、それより多いときは数で知らせます。</li>
+      <li><b>変更履歴</b>は見るだけです(直すたびに自動で1行増えます。誰が・いつ・何を・前の値)。<b>アプリ設定</b>は値だけ直せます(行は足せません・消せません)。</li>
+      <li>決まった言葉しか効かない値は、違う言葉を断ります(肉厚の逆算 = 1 / 0、早見表の丸め = 切り捨て / 四捨五入、枠色)。</li>
+      <li>ほかの表で使われている品種は消せません。消すときは「設定」→ VC品種を消す なら1回で消せます。</li>
+    </ul>
+  </section>
+
+  <section id="key">
+    <h2>鍵と管理者パスワード</h2>
+    <p>マスタの置き場所・早見表の品種・マスタの表を直すには、<b>管理者パスワード</b>を入れて「鍵を開ける」を押します。開けると、終了するか「鍵を閉める」まで、続けて直せます(「設定」と「マスタの表」で同じ鍵です)。</p>
+    <p>既定のパスワードは日報管理ツールと同じです。配る人が <code>make_dist.bat --admin-password …</code> で決めることも、「設定」→ 管理者パスワード でこの端末だけ変えることもできます(平文では持ちません)。</p>
+    <div class="note"><b>誤って直さないための関門です</b>パスワードを知っている人を確かめる仕組みではありません。</div>
+  </section>
+
+  <section id="share">
+    <h2>マスタの共有と、読めないとき</h2>
+    <ul>
+      <li><b>共有できる</b>: 置き場所を日報管理ツールの「VC計算マスタの置き場所」と同じフォルダにすれば、同じマスタを読みます。vc-calculator が作った <code>vc_master.sqlite3</code> も読めます。</li>
+      <li><b>掴まない</b>: マスタは手元に写してから読むので、読んでいるあいだも共有のファイルを掴みません(ほかの人がマスタを差し替えられます)。</li>
+      <li><b>書くとき</b>: 1回の取引で書き、変更履歴に残し、更新番号を上げます。ほかの端末は次の操作で新しい値になります。その日の最初に書く前に、マスタの隣の <code>backup</code> に控えを取ります(30日分)。</li>
+      <li><b>読めないとき</b>: 共有に届かない・ファイルが壊れているときも、計算は止めません。最後に読めた中身(控え)か、それも無ければ VBA に直書きされていた初期値で計算し、計算の面の上にそう出ます。書く操作(設定・マスタの表)は断ります。</li>
+    </ul>
+  </section>
+
+  <section id="formula">
+    <h2>計算式</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>出すもの</th><th>式</th></tr></thead>
+        <tbody>
+          <tr><td>外径(mm)</td><td>内径 + 2 × 肉厚</td></tr>
+          <tr><td>巻きの断面積(mm²)</td><td>π × (外径² − 内径²) ÷ 4</td></tr>
+          <tr><td>VC長さ(m)</td><td>断面積 ÷ VC厚 ÷ 1000(小数1桁に四捨五入)</td></tr>
+          <tr><td>枚数</td><td>VC長さ × 1000 ÷ 製品の丈(小数1桁に四捨五入)</td></tr>
+          <tr><td>肉厚(逆算)</td><td>(√(VC長さ × 1000 × VC厚 × 4 ÷ π + 内径²) − 内径) ÷ 2</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>丸めは VBA の <code>Format</code> と同じ(15桁で四捨五入)です。</p>
+  </section>
+
+  <footer>VC長さ・コイル平板 計算ツール 操作説明書 <span data-manual-version>v2.0.0</span> ─ 写真は <code>scripts/make_manual_images.py</code> で撮り直せます。</footer>
+</main>
+</body>
+</html>

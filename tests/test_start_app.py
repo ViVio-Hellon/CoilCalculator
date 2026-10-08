@@ -76,9 +76,10 @@ class BrowserVersionTest(unittest.TestCase):
             self.assertEqual(done.returncode, start_app.EXIT_OTHER_RUNNING)
             self.assertIn("デスクトップ版", done.stderr)
             self.assertIn("同時に使えません", done.stderr)
-            status = self.run_cmd(str(ROOT / "process_manager.py"))
-            self.assertEqual(status.returncode, 1, "デスクトップ版は窓の × で閉じる(--force 以外では止めない)")
-            self.assertIn("窓の ×", status.stdout)
+            status = self.run_cmd(str(ROOT / "process_manager.py"), "--status")
+            self.assertEqual(status.returncode, 0)
+            self.assertIn("デスクトップ版", status.stdout)
+            # stop.bat でデスクトップ版を止める流れは tests/test_launcher.py
         finally:
             desktop.stdin.close()
             desktop.wait(10)

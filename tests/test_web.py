@@ -61,7 +61,7 @@ class DesktopModeTest(unittest.TestCase):
         画面か外枠が利用者に訊いて「終了する」を選び、confirmed: true を付けたときだけ。
         """
         for body in ({}, {"confirmed": False}, {"confirmed": "yes"}, {"confirmed": 1},
-                     {"confirmed": "true"}, {"force": True}, None):
+                     {"confirmed": "true"}, {"forced": True}, None):
             with self.subTest(body=body):
                 res = self.app.handle(req("POST", "/api/shutdown", body))
                 self.assertEqual(res.status, 409)

@@ -13,6 +13,8 @@ Flask は使いません(ラインPCの Python に追加のパッケージを入
     POST /api/heartbeat       画面が開いている知らせ(ブラウザ版の自動終了に使う)
     POST /api/shutdown        終了。**{"confirmed": true} のときだけ止まる**。無ければ 409 で確かめの文を返す
                               (ブラウザ版の「終了」もデスクトップ版の窓の × も、この同じ確かめを通る)
+                              {"force": false|true} は業務ツール統合ランチャー・stop.bat からの停止
+                              (確かめは求めない。書き込み中なら force でないかぎり 409・busy)
     POST /api/client-error    画面の JS のエラーを動作ログに残す
     GET|POST /api/vc/…        VC長さ計算(計算・早見表・設定・マスタの表。coilcalc/vc_api.py)
     GET  /…                   画面のファイル(ブラウザ版だけ。デスクトップ版は Rust が返す)
@@ -23,12 +25,14 @@ Flask は使いません(ラインPCの Python に追加のパッケージを入
     400  本文の形が違う(JSON でない・fields が無い)
     403  よその画面からの要求(ブラウザ版の守り)
     409  終了の確かめがまだ(画面・外枠が利用者に訊いてから confirmed を付けて送り直す)
+         / ランチャーの停止で、VC計算マスタへ書いている最中(`reason: busy`・`running`)
     404  そんな経路は無い
 """
 from __future__ import annotations
 
 import json
 import mimetypes
+import os
 import platform
 import threading
 import time
@@ -125,6 +129,8 @@ class App:
         self.last_seen = time.monotonic()
         self.seen_page = False
         self.stopping = False
+        #: 待ち受けているポート(ブラウザ版だけ。デスクトップ版は 0 = ポートを使わない)
+        self.port = 0
         self._answered: set = set()
         self.vc = VcApi(json_response, error)
 
@@ -187,11 +193,7 @@ class App:
     def _api(self, req: Request) -> Response:
         path, method = req.path, req.method
         if method == "GET" and path == "/api/health":
-            # 版の表示(画面左上・操作説明書)に使う。外枠(Rust)の版は外枠が見出しに足す
-            return json_response(200, {"ok": True, "app": self.conf.get("display_name"),
-                                       "version": self.conf.get("version"), "mode": self.mode,
-                                       "python": platform.python_version(),
-                                       "heartbeat_seconds": self.conf["browser"]["heartbeat_seconds"]})
+            return json_response(200, self.health())
         if method == "GET" and path == "/api/spec":
             return json_response(200, calc.spec())
         if path.startswith("/api/vc/"):
@@ -228,6 +230,8 @@ class App:
             self.touch()
             return json_response(200, {"ok": True})
         if path == "/api/shutdown":
+            if "force" in body:
+                return self._shutdown_from_launcher(bool(body.get("force")))
             if body.get("confirmed") is not True:
                 # 確かめがまだ。**止めずに**訊く文を返す(true 以外 ── "yes" や 1 も止めない)
                 message = QUIT_CONFIRM.get(self.mode, QUIT_CONFIRM[MODE_BROWSER])
@@ -241,13 +245,51 @@ class App:
                     "error": {"code": "need_confirm", "message": "終了してよいか確かめてください。"}})
             log.info("終了の要求を受けました(%s・確かめ済み)", self.mode)
             self.request_shutdown()
-            return json_response(200, {"ok": True, "message": "終了します。"})
+            return json_response(200, {"ok": True, "stopped": True, "message": "終了します。"})
         if path == "/api/client-error":
             text = str(body.get("message", ""))[:2000]
             where = str(body.get("where", ""))[:200]
             log.warning("画面のエラー: %s (%s)", text, where)
             return json_response(200, {"ok": True})
         return error(404, "not_found", "そんな経路はありません。")
+
+    def _shutdown_from_launcher(self, force: bool) -> Response:
+        """業務ツール統合ランチャーの停止要求(`{"force": …}`)。
+
+        ランチャーで「止める」と決めて送ってくるので、画面の確かめ(confirmed)は求めない。
+        VC計算マスタへ書いている最中なら**止めずに理由を返す**(409・`running`)。
+        ランチャーは「中断して止めますか?」と利用者に聞き、よければ force で送り直す。
+        """
+        if vc_db.writing_now() and not force:
+            return json_response(409, {"ok": False, "stopped": False, "reason": "busy",
+                                       "running": ["VC計算マスタへの書き込み"],
+                                       "message": WRITING_NOTE})
+        log.info("ランチャーから停止の要求を受けました(%s・force=%s)", self.mode, force)
+        self.request_shutdown()
+        return json_response(200, {"ok": True, "stopped": True, "message": "終了します。"})
+
+    def health(self) -> Dict[str, Any]:
+        """動いているか・版。画面(版の表示)と、業務ツール統合ランチャーの起動確認が使う。
+
+        ランチャーは `app_id` の一致と `ready` で「このツールが使える」と判断し、
+        止めるときは `pid` と `app_root` で相手を確かめる(ほかのプロセスを落とさない)。
+        形は兄弟のツール(日報管理ツール・梱包資材総合ツール)と同じ。
+        """
+        return {
+            "ok": True,
+            "app_id": self.conf.get("app_id"),
+            "display_name": self.conf.get("display_name"),
+            "app": self.conf.get("display_name"),
+            "version": self.conf.get("version"),
+            "mode": self.mode,
+            "port": self.port,
+            "pid": os.getpid(),
+            "app_root": str(app_config.APP_ROOT),
+            "ready": True,
+            "stage": "使えます",
+            "python": platform.python_version(),
+            "heartbeat_seconds": self.conf["browser"]["heartbeat_seconds"],
+        }
 
     def request_shutdown(self) -> None:
         with self._lock:

@@ -23,10 +23,14 @@ CONFIG_PATH = APP_ROOT / "config" / "app.json"
 STATIC_DIR = APP_ROOT / "app" / "static"
 
 _DEFAULTS: Dict[str, Any] = {
-    "app_id": "coil-calculator",
+    "app_id": "nlm.coil-calculator",
     "display_name": "VC長さ・コイル平板 計算ツール",
     "version": "0.0.0",
     "local_dir_name": "CoilCalculator",
+    # ブラウザ版のポートの既定は**ここだけ**に置き、config/app.json には書かない。
+    # 業務ツール統合ランチャーは exe を登録するとき app.json の server.port を拾い、
+    # 「/api/health で起動を確かめる行」にしてしまう(デスクトップ版はポートを持たないので
+    # 90秒待って「起動できません」になる)。変えたいときだけ app.json に server.port を書く
     "server": {"host": "127.0.0.1", "port": 8741, "port_retry": 5},
     "browser": {"heartbeat_seconds": 10, "idle_exit_seconds": 90,
                 "first_open_grace_seconds": 180},

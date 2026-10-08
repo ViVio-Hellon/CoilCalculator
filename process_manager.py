@@ -1,12 +1,19 @@
-"""止める ── `stop.bat` から
+"""止める ── `stop.bat` から(業務ツール統合ランチャーも、ツールを止めるときこれを実行する)
 
-    python process_manager.py           動いているブラウザ版を止める
+    python process_manager.py           動いているこのツールを止める(ブラウザ版もデスクトップ版も)
     python process_manager.py --status  何が動いているかだけ出す
-    python process_manager.py --force   応答が無ければ pid で止める(デスクトップ版も)
+    python process_manager.py --force   VC計算マスタへ書いている最中でも止める。
+                                        頼んでも止まらなければ pid で止める
 
-ブラウザ版には画面の「終了」と同じ要求(POST /api/shutdown)を送り、止まるのを
-錠が外れることで確かめます。デスクトップ版はふだん窓の × で閉じます
-(`--force` のときだけ pid で止めます)。**ほかの Python アプリには触りません。**
+止め方(どれも**確かめの窓を出さない** ── stop.bat は「止める」と決めて実行するもの):
+
+    ブラウザ版      画面の「終了」と同じ要求(POST /api/shutdown)を送る
+    デスクトップ版  ポートが無いので、錠の隣に「止める頼み」を置く(coilcalc/stop_request.py)。
+                    動いている Python が見つけて、外枠ごと終わる
+
+止まったことは錠が外れることで確かめます。戻り値: 0 = 止まった(動いていなかった)/ 1 = 止まらない。
+**ほかの Python アプリには触りません**(頼みは錠の持ち主の pid 宛て。pid で止めるのも、
+錠を握っている持ち主 = このツールだけ)。
 """
 from __future__ import annotations
 
@@ -24,7 +31,7 @@ from typing import Optional
 APP_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP_ROOT))
 
-from coilcalc import app_config, instance_lock  # noqa: E402
+from coilcalc import app_config, instance_lock, stop_request  # noqa: E402
 
 
 def lock_free() -> bool:
@@ -41,10 +48,11 @@ def wait_free(seconds: float) -> bool:
     return lock_free()
 
 
-def ask_shutdown(url: str) -> bool:
+def ask_shutdown(url: str, force: bool = False) -> bool:
+    """ランチャーと同じ頼み方で止める。VC計算マスタへ書いている最中なら 409 で断られる(force なら止まる)。"""
+    body = json.dumps({"force": bool(force)}).encode("utf-8")
     try:
-        # stop.bat は「止める」と決めて実行するものなので、確かめ済みとして送る
-        req = urllib.request.Request(url.rstrip("/") + "/api/shutdown", data=b'{"confirmed": true}', method="POST",
+        req = urllib.request.Request(url.rstrip("/") + "/api/shutdown", data=body, method="POST",
                                      headers={"Content-Type": "application/json"})
         # 社内のプロキシを通さない(127.0.0.1 へ直接)
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -64,6 +72,11 @@ def kill(pid: int) -> None:
             pass
 
 
+#: 頼んでから止まるのを待つ上限(秒)。VC計算マスタへ書いている最中なら書き終わるまで待つ(最大15秒)
+GRACEFUL_WAIT = 25.0
+FORCE_WAIT = 8.0
+
+
 def main(argv: Optional[list] = None) -> int:
     parser = argparse.ArgumentParser(description="VC長さ・コイル平板 計算ツールを止める")
     parser.add_argument("--status", action="store_true")
@@ -80,23 +93,32 @@ def main(argv: Optional[list] = None) -> int:
         print(f"{what} が動いています: {json.dumps(owner, ensure_ascii=False)}")
         return 0
 
+    pid = owner.get("pid")
+    wait = FORCE_WAIT if args.force else GRACEFUL_WAIT
     if owner.get("kind") == instance_lock.KIND_BROWSER and owner.get("url"):
         print(f"{what} を止めます({owner['url']})")
-        if ask_shutdown(owner["url"]) and wait_free(8):
+        if ask_shutdown(owner["url"], args.force) and wait_free(wait):
             print("止めました。")
             return 0
-        if not args.force:
-            print("応答がありません。stop.bat --force で強制的に止められます。")
-            return 1
-    elif not args.force:
-        print(f"{what} が開いています。窓の × で閉じてください"
-              "(強制的に止めるときは stop.bat --force)。")
+    if isinstance(pid, int):
+        # デスクトップ版(と、HTTP で答えないブラウザ版)。錠の持ち主宛てに頼む
+        print(f"{what} に終了を頼みます")
+        if stop_request.write(runtime, pid, force=args.force) and wait_free(wait):
+            print("止めました。")
+            return 0
+        stop_request.withdraw(runtime)
+    if not args.force:
+        print("止まりませんでした。VC計算マスタへ書いている最中かもしれません。"
+              "少し待ってからもう一度実行するか、stop.bat --force で止めてください。")
         return 1
-
-    pid = owner.get("pid")
     if not isinstance(pid, int):
         print("止める相手(pid)が分かりません。")
         return 1
+    # 錠を握っているのは持ち主の pid だけ(錠を取った側が instance.json を書き直す)。
+    # その pid がまだ錠を握っている = このツールなので、ほかのプロセスを落とすことはない
+    if lock_free():
+        print("止めました。")
+        return 0
     print(f"pid {pid} を止めます")
     kill(pid)
     if wait_free(8):

@@ -7,6 +7,7 @@ r"""起動ファイル(start.bat / stop.bat / Start.vbs)を **Windows で本当�
     start.bat --check          確かめだけして 0 で終わる
     start.bat(ブラウザを開かない)→ 起動 → stop.bat で止める → start.bat も 0 で終わる
     Start.vbs(cscript)        → pythonw で起動 → stop.bat で止める
+    Start.vbs --no-browser --port N(ランチャーと同じ渡し方)→ 引数が届いて N で待ち受ける
 """
 from __future__ import annotations
 
@@ -93,6 +94,22 @@ class LaunchFilesOnWindowsTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, out)
         try:
             self.assertTrue(wait_for(lambda: owner(self.local).get("url")), "Start.vbs で起動しませんでした")
+        finally:
+            self.stop()
+
+    def test_start_vbs_forwards_arguments(self):
+        """ランチャーは Start.vbs にも --no-browser を渡す。落とすと画面が2枚開く。"""
+        port = str(free_port())
+        env = dict(self.env)
+        env.pop("COIL_TOOL_NO_BROWSER", None)            # 引数だけでブラウザを開かないこと
+        done = subprocess.run(["cscript", "//nologo", "Start.vbs", "--no-browser", "--port", port],
+                              cwd=str(ROOT), env=env, stdin=subprocess.DEVNULL, capture_output=True,
+                              timeout=120)
+        out = (done.stdout + done.stderr).decode("cp932", errors="replace")
+        self.assertEqual(done.returncode, 0, out)
+        try:
+            self.assertTrue(wait_for(lambda: owner(self.local).get("url")), "Start.vbs で起動しませんでした")
+            self.assertIn(f":{port}/", owner(self.local)["url"], "--port が届いていません")
         finally:
             self.stop()
 

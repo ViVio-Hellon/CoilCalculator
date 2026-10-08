@@ -64,4 +64,10 @@ End If
 ' パスは絶対パスで渡す。共有フォルダから実行されることもある
 shell.CurrentDirectory = here
 cmd = "pythonw " & Chr(34) & script & Chr(34)
+' 渡された引数はそのまま start_app.py へ渡す(ランチャーが --no-browser を付けて呼ぶと、
+' 画面はランチャーが開き、止めるときに閉じられる)。ふだんのダブルクリックは引数なし
+Dim i
+For i = 0 To WScript.Arguments.Count - 1
+    cmd = cmd & " " & Chr(34) & WScript.Arguments(i) & Chr(34)
+Next
 shell.Run cmd, 0, False

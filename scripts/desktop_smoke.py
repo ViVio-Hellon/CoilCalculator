@@ -15,6 +15,9 @@
     7. 動いている間に、アプリのフォルダの設定・画面のファイル・.py を差し替えられる(掴んだままにしない)
     8. 作業フォルダが壊れていても起動し、ブラウザ版との排他も保つ(錠を一時フォルダに置く)
     9. 動いている間に、VC計算マスタ(読み終えたあと)を差し替えられる(写してから読むので掴まない)
+   10. stop.bat(業務ツール統合ランチャーが止めるときに使う)で、**確かめを出さずに**終わる
+       (×の確かめは「やめる」にしておく ── 確かめを通ったら終わらないので分かる)
+       LAUNCHER_REPO があれば(Windows)、ランチャー本体のコードで「stop.bat で止める」も確かめる
 
 使い方:
     python scripts/desktop_smoke.py --exe src-tauri/target/release/CoilCalculator.exe
@@ -228,6 +231,33 @@ def stop(app: subprocess.Popen) -> None:
         app.wait(5)
 
 
+LAUNCHER_STOP = r"""
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from launcher.runtime_state import RunningTool
+import process_manager
+job = json.loads(sys.argv[2])
+running = RunningTool(app_id="nlm.coil-calculator", ui_mode="app", start_command=job["exe"],
+                      stop_command=job["stop"], stop_method="stop_bat", app_root=job["root"])
+result = process_manager.stop(running, timeout=30)
+print(json.dumps({"stopped": result.stopped, "method": result.method, "message": result.message},
+                 ensure_ascii=False))
+"""
+
+
+def launcher_stop(repo: str, exe: Path, env: dict, work: Path) -> dict:
+    """ランチャー本体の process_manager.stop で、アプリの窓の行(exe)を stop.bat で止める。"""
+    job = {"exe": str(exe.resolve()), "stop": str(ROOT / "stop.bat"), "root": str(ROOT)}
+    run_env = dict(env, BUSINESS_TOOLS_LAUNCHER_LOCAL_DIR=str(work / "launcher"))
+    done = subprocess.run([sys.executable, "-c", LAUNCHER_STOP, repo, json.dumps(job)], cwd=repo,
+                          env=run_env, capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", timeout=120)
+    try:
+        return json.loads(done.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return {"error": (done.stdout + done.stderr)[-1500:]}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", required=True)
@@ -349,6 +379,46 @@ def main() -> int:
           f"作業フォルダが壊れているとブラウザ版が止まりません(終了コード {refused.returncode})")
     stop(damaged)
     work = since_work
+
+    # ---- 10: stop.bat(ランチャーからの停止)---------------------------------------
+    quiet_env = dict(env, COIL_TOOL_CLOSE_ANSWER="no")
+    target, ready = launch(quiet_env)
+    check(ready, "もう一度起動しました(stop.bat の確かめ用)", "もう一度起動できませんでした")
+    if ready:
+        target_kids = children(target.pid)
+        stop_cmd = (["cmd", "/c", str(ROOT / "stop.bat")] if WINDOWS
+                    else [sys.executable, str(ROOT / "process_manager.py")])
+        done = subprocess.run(stop_cmd, env=quiet_env, cwd=str(ROOT), stdin=subprocess.DEVNULL,
+                              capture_output=True, timeout=90)
+        try:
+            target.wait(20)
+        except subprocess.TimeoutExpired:
+            pass
+        check(done.returncode == 0 and target.poll() is not None,
+              "stop.bat で、確かめを出さずにデスクトップ版が終わりました",
+              f"stop.bat で終わりません(stop.bat {done.returncode}、exe {target.poll()}): "
+              + (done.stdout + done.stderr).decode("cp932" if WINDOWS else "utf-8", "replace")[-800:])
+        gone = wait_for(lambda: not any(alive(p) for p in target_kids), 15)
+        check(gone, "stop.bat のあと Python も終わりました",
+              f"取り残されたプロセスがあります: {[p for p in target_kids if alive(p)]}")
+    if target.poll() is None:
+        force_stop(target)
+
+    launcher_repo = os.environ.get("LAUNCHER_REPO", "")
+    if WINDOWS and launcher_repo and (Path(launcher_repo) / "launcher").is_dir():
+        target, ready = launch(quiet_env)
+        check(ready, "もう一度起動しました(ランチャーからの停止の確かめ用)", "もう一度起動できませんでした")
+        if ready:
+            got = launcher_stop(launcher_repo, Path(args.exe), quiet_env, work)
+            try:
+                target.wait(20)
+            except subprocess.TimeoutExpired:
+                pass
+            check(got.get("stopped") is True and target.poll() is not None,
+                  f"ランチャー本体のコードで、デスクトップ版を止められました({got.get('method')})",
+                  f"ランチャーから止められません: {got}")
+        if target.poll() is None:
+            force_stop(target)
 
     # ---- 5: ブラウザ版が先に動いているとき -------------------------------------
     browser = subprocess.Popen(browser_cmd, env=env, cwd=str(ROOT),

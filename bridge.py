@@ -94,6 +94,25 @@ def _protect_stdout() -> BinaryIO:
     return proto
 
 
+def watch_stop_requests(app, log) -> None:
+    """stop.bat(ランチャーからの停止)の頼みを聞く。**錠を握っている外枠の pid 宛て**の頼みだけ。
+
+    デスクトップ版はポートを持たないので、頼みは錠の隣のファイルで受ける(coilcalc/stop_request.py)。
+    外枠は錠を取ってからここを起こすので、錠の場所と持ち主はもう決まっている。
+    錠が無い(作業フォルダも一時フォルダも使えない)ときは聞かない ── 窓の × で閉じる。
+    """
+    from coilcalc import app_config, instance_lock, stop_request
+    from coilcalc.vc import db as vc_db
+
+    place = instance_lock.find_busy(app_config.runtime_candidates())
+    owner = instance_lock.read_owner(place, wait=2.0) if place is not None else None
+    if not owner or owner.get("kind") != instance_lock.KIND_DESKTOP or not isinstance(owner.get("pid"), int):
+        log.info("外から止める頼みは受けません(錠の持ち主が分からない)")
+        return
+    stop_request.Watcher(place, owner["pid"], app.request_shutdown,
+                         writing_now=vc_db.writing_now).start()
+
+
 def serve(reader: BinaryIO, writer: FrameWriter) -> int:
     """標準入力から要求を読み、順に答える。相手が閉じたら終わる。
 
@@ -121,6 +140,7 @@ def serve(reader: BinaryIO, writer: FrameWriter) -> int:
 
     app = web.App(web.MODE_DESKTOP, on_shutdown=quit_now)
     log.info("デスクトップ版 %s を始めます(ポートは使いません)", conf.get("version"))
+    watch_stop_requests(app, log)
     writer.event("started", version=conf.get("version"))
     while not stop.is_set():
         try:

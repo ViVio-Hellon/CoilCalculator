@@ -39,7 +39,8 @@ from typing import Optional
 APP_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP_ROOT))
 
-from coilcalc import app_config, instance_lock, logging_setup, web  # noqa: E402
+from coilcalc import app_config, instance_lock, logging_setup, stop_request, web  # noqa: E402
+from coilcalc.vc import db as vc_db  # noqa: E402
 
 MIN_PYTHON = (3, 8)
 
@@ -207,10 +208,14 @@ def serve(*, open_browser: bool = True, port: Optional[int] = None) -> int:
 
         stopped = threading.Event()
         app = web.App(web.MODE_BROWSER, on_shutdown=stopped.set, allowed_hosts=hosts)
+        app.port = bound
         Handler.app = app
         if lock is not None:
             lock.write_owner(instance_lock.KIND_BROWSER, url=url, port=bound,
                              version=conf.get("version"))
+            # stop.bat(ランチャーからの停止)の頼みを聞く。画面の「終了」と同じ止め方
+            stop_request.Watcher(place, os.getpid(), app.request_shutdown,
+                                 writing_now=vc_db.writing_now).start()
         thread = threading.Thread(target=server.serve_forever, name="http", daemon=True)
         thread.start()
         log.info("ブラウザ版 %s を始めました: %s", conf.get("version"), url)
@@ -258,7 +263,7 @@ def main(argv: Optional[list] = None) -> int:
         if args.check:
             print(f"OK: Python {sys.version.split()[0]} / {app_config.STATIC_DIR}", file=sys.stderr)
             return EXIT_OK
-        # COIL_TOOL_NO_BROWSER=1: Start.vbs から起動するときも開かない(試験・CI。Start.vbs は引数を渡さない)
+        # COIL_TOOL_NO_BROWSER=1: 引数を付けずに起動するときも開かない(試験・CI)
         no_browser = args.no_browser or os.environ.get("COIL_TOOL_NO_BROWSER") == "1"
         return serve(open_browser=not no_browser, port=args.port)
     except StartupError as exc:

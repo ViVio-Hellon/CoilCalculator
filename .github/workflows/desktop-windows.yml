@@ -11,6 +11,8 @@
 #   - 作った exe を本当に起動し、計算が Python から返ること・ポートで待ち受けないこと・
 #     止めたら Python も終わること・ブラウザ版との排他(scripts/desktop_smoke.py)
 #   - start.bat / stop.bat / Start.vbs を本当に動かす(tests/test_launch_windows.py)
+#   - 業務ツール統合ランチャー(python-business-tools-launcher)の本体のコードで、
+#     登録の読み取り・起動確認・停止(stop.bat / 停止要求)を確かめる(tests/test_launcher.py・desktop_smoke)
 #   - 配布フォルダ(scripts/make_dist.py)を exe 入りで作り、その start.bat --check が通る
 #     → 成果物 "CoilCalculator-dist"(そのまま配れるフォルダ)
 name: デスクトップ版(Windows)
@@ -45,9 +47,14 @@ jobs:
         with:
           node-version: "22"
 
+      # ランチャーはこのツールの外に取ってくる(ツールの直下に置くと配布フォルダの検査に引っかかる)
+      - name: 業務ツール統合ランチャーを取ってくる
+        run: git clone --depth 1 https://github.com/ViVio-Hellon/python-business-tools-launcher "${{ runner.temp }}/launcher"
+
       - name: Python の試験(pip install は要らない)
         env:
           PYTHONIOENCODING: utf-8
+          LAUNCHER_REPO: ${{ runner.temp }}/launcher
         run: python -m unittest discover -s tests -t . -v
 
       - uses: dtolnay/rust-toolchain@stable
@@ -67,6 +74,7 @@ jobs:
       - name: 作った exe を起動して確かめる
         env:
           PYTHONIOENCODING: utf-8
+          LAUNCHER_REPO: ${{ runner.temp }}/launcher
         run: python scripts/desktop_smoke.py --exe src-tauri/target/release/CoilCalculator.exe
 
       - uses: actions/upload-artifact@v4

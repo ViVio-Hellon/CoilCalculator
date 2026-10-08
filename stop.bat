@@ -3,11 +3,12 @@ rem  --- keep this file in CP932 (Shift-JIS) with CRLF line endings ---
 rem  Keep everything above the chcp line ASCII; see start.bat for why.
 chcp 932 >nul 2>&1
 rem ===================================================================
-rem  VC長さ・コイル平板 計算ツール (ブラウザ版) 停止
+rem  VC長さ・コイル平板 計算ツール 停止 (デスクトップ版・ブラウザ版のどちらも)
 rem
 rem  このアプリだけを止めます。同じPCで動くほかの Python アプリは
-rem  影響を受けません。デスクトップ版は窓の × で閉じます
-rem  (強制的に止めるときだけ stop.bat --force)。
+rem  影響を受けません。終了の確かめは出しません (業務ツール統合
+rem  ランチャーが切り替えのときに使います)。VC計算マスタへ書いている
+rem  最中なら書き終えてから止まります。待たずに止めるときは --force。
 rem ===================================================================
 setlocal
 

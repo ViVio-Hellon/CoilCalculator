@@ -152,6 +152,29 @@ class DoublePressTests(unittest.TestCase):
         self.assertNotIn('dataset.mode === "desktop" && tauri', VC_JS)
 
 
+class CoilFitTests(unittest.TestCase):
+    """コイル・平板を切り替えると画面が揺れ続けた件(画面に収める仕組みの行き来)。
+
+    カード・入力欄の余白は 0.3 秒かけて変わる。動いている途中の高さをはかっていたので、
+    枠の高さがある幅(例: 1920×950 の窓で 818px、デスクトップ版の窓で約 808px)に入ると
+    「そのまま」と「詰める」を毎コマ行き来した。窓の大きさを 10px 刻みで総当たりして
+    落ち着くことはブラウザで確かめた(Playwright。ヘッドレスでは動きの時計が止まるので、
+    動きの途中の値で止まったまま = 揺れがいちばん出やすい形で確かめている)。
+    """
+
+    def test_measuring_stops_transitions(self):
+        css = (STATIC / "coil" / "coil-fit.css").read_text(encoding="utf-8")
+        block = css[css.index("html.fit-measure,\nhtml.fit-measure *,"):]
+        self.assertIn("transition: none !important;", block[:300])
+
+    def test_flip_guard(self):
+        js = (STATIC / "coil" / "coil-fit.js").read_text(encoding="utf-8")
+        self.assertIn("const FLIP_LIMIT = 4;", js)
+        self.assertIn("heldUntil = now + FLIP_WINDOW_MS;", js)
+        # 窓の大きさを変えたら歯止めを外す(新しい大きさで決め直す)
+        self.assertIn("window.addEventListener('resize', () => { heldUntil = 0; flips = []; later(); });", js)
+
+
 class WiringTests(unittest.TestCase):
     def test_class_names_do_not_collide(self):
         """VC の部品は `vc-` で始める(コイル・平板の .tab / .result-card などと混ざらない)。"""

@@ -130,6 +130,8 @@ class AppJsonTest(unittest.TestCase):
             self.assertIn('"%~dp0process_manager.py"', text)
             self.assertNotIn("pause", text.replace("pause は置きません", ""), "ランチャーは入口の終わりを待つ")
         self.assertIn("--check", (ROOT / "launcher_check.bat").read_bytes().decode("cp932"))
+        # ランチャー 1.7.1 は、利用者が強制終了を選ぶと launcher_stop.bat --force で呼び直す
+        self.assertIn('process_manager.py" %*', (ROOT / "launcher_stop.bat").read_bytes().decode("cp932"))
 
     def test_start_vbs_forwards_arguments(self):
         text = (ROOT / "Start.vbs").read_bytes().decode("cp932")
@@ -261,6 +263,22 @@ class StopBatForDesktopTest(unittest.TestCase):
     def test_nothing_running(self):
         self.assertEqual(self.run_in_process(), 0)
 
+    def test_reason_is_first_and_last_line(self):
+        """ランチャー 1.7.1: stop.bat ははじめの行、launcher_stop.bat は最後の行を「止めなかった理由」に出す"""
+        frame = hold_in_child(self.runtime, instance_lock.KIND_DESKTOP)   # 頼みを聞かない
+        self.addCleanup(lambda: frame.poll() is None and frame.kill())
+        printed = []
+        with mock.patch.dict(os.environ, {"COIL_TOOL_LOCAL_DIR": str(self.local)}), \
+                mock.patch.object(process_manager, "GRACEFUL_WAIT", 1.0), \
+                mock.patch("builtins.print", side_effect=lambda *a, **k: printed.append(" ".join(map(str, a)))):
+            self.assertEqual(process_manager.main([]), 1)
+        lines = "\n".join(printed).splitlines()
+        self.assertIn("止めませんでした", lines[0])
+        self.assertEqual(lines[0], lines[-1])
+        frame.stdin.close()
+        frame.wait(10)
+        frame.stdout.close()
+
 
 class CheckEntryTest(unittest.TestCase):
     """launcher_check.bat(process_manager.py --check)の答え"""
@@ -376,6 +394,11 @@ if job["what"] == "probe":
     entries = {name: tool_entries.for_start(path) for name, path in job["paths"].items()}
     out["entries"] = {name: {"check": bool(e.check), "stop": bool(e.stop), "problem": e.problem}
                       for name, e in entries.items()}
+    exe = tool_registry.Tool(app_id=out["exe"].get("app_id", ""), display_name="x",
+                             port=int(out["exe"].get("port", 0)), start_command=job["paths"]["exe"],
+                             ui_mode=out["exe"].get("ui_mode", ""))
+    out["exe_problem"] = exe.ui_problem()
+    out["vbs_args"] = tool_registry.recommend_start_args(job["paths"]["vbs"])[0]
 elif job["what"] == "check":
     from launcher import tool_entries
     out["state"] = tool_entries.check(tool_entries.for_start(job["start"])).state
@@ -428,9 +451,13 @@ class RealLauncherTest(unittest.TestCase):
             "exe": str(folder / "CoilCalculator.exe")}})
         for row in ("bat", "vbs", "exe"):
             self.assertEqual(got[row]["app_id"], APP_ID)
-            self.assertEqual(got[row].get("port"), 8741)
+            self.assertEqual(got[row].get("port", got[row].get("browser_port")), 8741)
             # exe を選んだ PC でも Start.vbs を選んだ PC でも、同じフォルダの入口が使われる
             self.assertEqual(got["entries"][row], {"check": True, "stop": True, "problem": ""})
+        # 1.7.1〜: exe の行にはブラウザ版のポートを入れない(入口が確かめるので、空で起動できる)
+        self.assertNotIn("port", got["exe"])
+        self.assertEqual(got["exe_problem"], "", "ポートが空でも起動できる(起動確認の入口がある)")
+        self.assertEqual(got["vbs_args"], "--no-browser", "Start.vbs に --no-browser が届く")
         self.assertEqual(got["exe"].get("ui_mode"), "app")
         self.assertTrue(got["vbs_forwards"], "Start.vbs は --no-browser を届ける")
 

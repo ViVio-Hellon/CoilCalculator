@@ -133,41 +133,44 @@ def main(argv: Optional[list] = None) -> int:
         print(f"{what} が動いています: {json.dumps(owner, ensure_ascii=False)}")
         return 0
 
+    # 途中の様子は溜めておき、最後に結果と一緒に出す。**止めなかった理由は先頭と最後の行**に置く
+    # (業務ツール統合ランチャー 1.7.1 は、stop.bat ならはじめの行、launcher_stop.bat なら最後の行を
+    # 「止めなかった理由」として利用者に出す)
+    steps = []
+
+    def done(code: int, result: str, *extra: str) -> int:
+        lines = [result, *extra, *steps]
+        if code != 0:
+            lines.append(result)
+        print("\n".join(lines))
+        return code
+
     pid = owner.get("pid")
     wait = FORCE_WAIT if args.force else GRACEFUL_WAIT
     if owner.get("kind") == instance_lock.KIND_BROWSER and owner.get("url"):
-        print(f"{what} を止めます({owner['url']})")
+        steps.append(f"{what} に終了を頼みました({owner['url']})")
         if ask_shutdown(owner["url"], args.force) and wait_free(wait):
-            print("止めました。")
-            return 0
+            return done(0, "止めました。")
     if isinstance(pid, int):
         # デスクトップ版(と、HTTP で答えないブラウザ版)。錠の持ち主宛てに頼む
-        print(f"{what} に終了を頼みます")
+        steps.append(f"{what} に終了を頼みました(pid {pid})")
         if stop_request.write(runtime, pid, force=args.force) and wait_free(wait):
-            print("止めました。")
-            return 0
+            return done(0, "止めました。")
         stop_request.withdraw(runtime)
     if not args.force:
-        # 最後の1行はランチャーが「止めなかった理由」として出す
-        print("少し待ってからもう一度止めるか、強制終了(stop.bat --force)を選んでください。")
-        print("VC計算マスタへの書き込みが終わらないため、止めませんでした")
-        return 1
+        return done(1, "VC計算マスタへの書き込みが終わらないため、止めませんでした",
+                    "少し待ってからもう一度止めるか、強制終了(stop.bat --force)を選んでください。")
     if not isinstance(pid, int):
-        print("止める相手(pid)が分かりません。")
-        return 1
+        return done(1, "止める相手(pid)が分からないため、止めませんでした")
     # 錠を握っているのは持ち主の pid だけ(錠を取った側が instance.json を書き直す)。
     # その pid がまだ錠を握っている = このツールなので、ほかのプロセスを落とすことはない
     if lock_free():
-        print("止めました。")
-        return 0
-    print(f"pid {pid} を止めます")
+        return done(0, "止めました。")
+    steps.append(f"pid {pid} を止めました(--force)")
     kill(pid)
     if wait_free(8):
-        print("止めました。")
-        return 0
-    print("止められませんでした。")
-    return 1
-
+        return done(0, "止めました。")
+    return done(1, "pid で止めても終わらないため、止められませんでした")
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -23,9 +23,10 @@ VC長さ計算は **VC計算マスタ**(`VC計算マスタ.sqlite3`。日報管�
 | **デスクトップ版**(ふだん) | `CoilCalculator.exe` をダブルクリック | **使わない** | 専用の窓で開く。閉じるのは窓の × →「終了する」か `stop.bat` |
 | ブラウザ版(予備) | `Start.vbs` をダブルクリック | 127.0.0.1:8741〜 | 既定のブラウザで開く。閉じるのは画面右上の「終了」→ OK か `stop.bat` |
 
-- **業務ツール統合ランチャーから使うとき**は [docs/ランチャー連携.md](docs/ランチャー連携.md)。
-  登録するのは `CoilCalculator.exe`(ポートは空のまま)か `start.bat`(ポート 8741)のどちらか1つ。
-  `stop.bat` は**どちらの版も確かめ無しで**止めます(ランチャーが切り替えのときに使う)
+- **業務ツール統合ランチャーから使うとき**は [docs/ランチャー連携.md](docs/ランチャー連携.md)(統合ツール all-tools と同じ作法)。
+  登録するのは `CoilCalculator.exe` か `Start.vbs` のどちらか1つ。起動確認と終了は、直下の
+  `launcher_check.bat`・`launcher_stop.bat`(ランチャー 1.7.0 の入口)をランチャーが使います。
+  `stop.bat`・`launcher_stop.bat` は**どちらの版も確かめ無しで**止めます
 
 - 起動しないときは `start.bat`(コンソールに原因が出ます)
 - **ブラウザ版とデスクトップ版は同時に動きません。後から開いたほうが止まります。**
@@ -41,7 +42,7 @@ VC長さ計算は **VC計算マスタ**(`VC計算マスタ.sqlite3`。日報管�
   窓の × と「終了」は同じ確かめを通ります(確かめの文と判断は Python の1か所)。
   作業フォルダ(%LOCALAPPDATA%\CoilCalculator)が壊れていても起動は止まりません(錠を一時フォルダに置きます)。
 
-- **版**: 画面の右上に「v2.1.0 デスクトップ版」のように出ます。押すと、アプリ・外枠(Rust)・
+- **版**: 画面の右上に「v2.2.0 デスクトップ版」のように出ます。押すと、アプリ・外枠(Rust)・
   計算(Python)の版と、どちらの版で動いているかが出ます。デスクトップ版の窓の題名・印刷した計算書にも版が入ります
 - **操作説明書**: 画面の右上の「操作説明」で、いま見ている面(VC長さ計算 / コイル / 平板)の説明書が開きます
   (デスクトップ版は別の窓、ブラウザ版は別のタブ)。中身は `app/static/manual/`(画面の写真入りの HTML)。
@@ -129,9 +130,10 @@ Windows の exe は GitHub Actions が作ります(`.github/workflows/desktop-wi
 
 ```
 CoilCalculator.exe  (Actions の成果物を置く)    Start.vbs / start.bat / stop.bat  ブラウザ版の起動・両方の版の停止
+launcher_check.bat / launcher_stop.bat           業務ツール統合ランチャーの入口(起動確認・終了)
 bridge.py          デスクトップ版の入口         start_app.py / process_manager.py  ブラウザ版の起動・停止(stop.bat)の本体
 coilcalc/          計算と答え方(Python)         app/static/                        画面(HTML/JS/CSS・同梱ライブラリ・説明書)
-src-tauri/         デスクトップ版の外枠(Rust)   config/app.json                    アプリID・版・自動終了の秒数・マスタの置き場所の既定
+src-tauri/         デスクトップ版の外枠(Rust)   config/app.json                    アプリID・版・ポート・自動終了の秒数・マスタの置き場所の既定
 tests/             試験                          scripts/                           exe の確認・説明書の写真・アイコン作り
 ```
 

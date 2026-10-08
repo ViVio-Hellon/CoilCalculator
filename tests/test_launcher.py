@@ -3,16 +3,19 @@ r"""業務ツール統合ランチャー(python-business-tools-launcher)との�
 ランチャーはツールごとに分岐しない。どのツールにも同じことをする:
 
     起動    起動ファイル(start.bat / Start.vbs / exe)を実行する。start.bat・Start.vbs には --no-browser
-    確認    GET /api/health が app_id の一致と ready を返すまで待つ(ポートの無い exe は窓とプロセス)
-    停止    起動ファイルの隣の stop.bat → POST /api/shutdown {"force": …} → pid(照合してから)
+    確認    起動ファイルの隣の launcher_check.bat(1.7.0〜。無ければ /api/health・窓とプロセス)
+    停止    起動ファイルの隣の launcher_stop.bat(1.7.0〜。無ければ 窓に「閉じて」→ stop.bat →
+            POST /api/shutdown {"force": …} → pid)。断られたら強制終了を選んだときだけ続ける
     登録    起動ファイルの近くの config/app.json から app_id・表示名・版・ポートを読む
 
-このツールの側で守ること(docs/ランチャー連携.md):
+このツールの側で守ること(docs/ランチャー連携.md。統合ツール all-tools と同じ作法):
+    - launcher_check.bat: 0 = 使える / 2 = 準備中 / 1 = 動いていない。**錠を取りにいかない**
+    - launcher_stop.bat: どちらの版も確かめ無しで止める。止めなければ 0 以外と理由の1行
     - /api/health の形(app_id・ready・pid・port・app_root)
     - /api/shutdown {"force": false} は確かめ無しで止まる。書き込み中は 409・busy、force なら止まる
     - stop.bat は**どちらの版も**止める。デスクトップ版はポートが無いので、錠の隣の stop.request で頼む
     - Start.vbs は引数を渡す(ランチャーが渡す --no-browser を落とさない)
-    - config/app.json に server.port を書かない(exe の行が「ポートで確かめる行」になってしまう)
+    - config/app.json の server.port はブラウザ版のポート(all-tools と同じ。exe の行は入口が確かめる)
 
 ランチャーのリポジトリが手元にあれば(LAUNCHER_REPO、無ければこのツールの隣・vivio-hellon の下)、
 **ランチャー本体のコード**で起動確認・停止・登録の読み取りまで確かめる(別プロセスで動かす)。
@@ -116,11 +119,17 @@ class HealthAndShutdownTest(unittest.TestCase):
 
 
 class AppJsonTest(unittest.TestCase):
-    def test_no_port_in_app_json_but_default_stays(self):
+    def test_port_is_in_app_json_like_all_tools(self):
         raw = json.loads((ROOT / "config" / "app.json").read_text(encoding="utf-8"))
-        self.assertNotIn("port", raw.get("server", {}),
-                         "書くとランチャーが exe の行にもポートを入れ、90秒待って「起動できません」になる")
+        self.assertEqual(raw["server"]["port"], 8741, "ランチャーがブラウザ版の行のポートを読み取る")
         self.assertEqual(app_config.load()["server"]["port"], 8741)
+
+    def test_launcher_entries_sit_next_to_the_start_files(self):
+        for name in ("launcher_check.bat", "launcher_stop.bat"):
+            text = (ROOT / name).read_bytes().decode("cp932")
+            self.assertIn('"%~dp0process_manager.py"', text)
+            self.assertNotIn("pause", text.replace("pause は置きません", ""), "ランチャーは入口の終わりを待つ")
+        self.assertIn("--check", (ROOT / "launcher_check.bat").read_bytes().decode("cp932"))
 
     def test_start_vbs_forwards_arguments(self):
         text = (ROOT / "Start.vbs").read_bytes().decode("cp932")
@@ -253,6 +262,77 @@ class StopBatForDesktopTest(unittest.TestCase):
         self.assertEqual(self.run_in_process(), 0)
 
 
+class CheckEntryTest(unittest.TestCase):
+    """launcher_check.bat(process_manager.py --check)の答え"""
+
+    def setUp(self):
+        self.local = temp_local_dir()
+        self.env = child_env(self.local)
+        self.runtime = self.local / "runtime"
+
+    def check(self):
+        done = subprocess.run([sys.executable, str(ROOT / "process_manager.py"), "--check"], env=self.env,
+                              cwd=str(ROOT), stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                              encoding="utf-8", timeout=30)
+        lines = [line for line in done.stdout.splitlines() if line.strip()]
+        return done.returncode, (lines[-1] if lines else "")
+
+    def test_nothing_running(self):
+        self.assertEqual(self.check()[0], process_manager.CHECK_NOT_RUNNING)
+
+    def test_desktop_running_is_ready(self):
+        frame = hold_in_child(self.runtime, instance_lock.KIND_DESKTOP)
+        try:
+            code, note = self.check()
+            self.assertEqual(code, process_manager.CHECK_READY)
+            self.assertIn("デスクトップ版", note)
+        finally:
+            frame.stdin.close()
+            frame.wait(10)
+            frame.stdout.close()
+        self.assertEqual(self.check()[0], process_manager.CHECK_NOT_RUNNING, "終われば動いていない")
+
+    def test_browser_ready_and_starting(self):
+        # 錠と印はあるのに答えない(待ち受けを始める前)= 準備中
+        frame = hold_in_child(self.runtime, instance_lock.KIND_BROWSER)   # url は答えない 127.0.0.1:1
+        try:
+            code, note = self.check()
+            self.assertEqual(code, process_manager.CHECK_STARTING)
+            self.assertIn("準備", note)
+        finally:
+            frame.stdin.close()
+            frame.wait(10)
+            frame.stdout.close()
+        port = free_port()
+        server = subprocess.Popen([sys.executable, str(ROOT / "start_app.py"), "--no-browser", "--port", str(port)],
+                                  env=self.env, cwd=str(ROOT), stdin=subprocess.DEVNULL,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(lambda: server.poll() is None and server.kill())
+        self.assertTrue(wait_for(lambda: self.check()[0] == process_manager.CHECK_READY, 30))
+        self.assertIn(f":{port}/", self.check()[1])
+        done = subprocess.run([sys.executable, str(ROOT / "process_manager.py")], env=self.env, cwd=str(ROOT),
+                              stdin=subprocess.DEVNULL, capture_output=True, timeout=60)
+        self.assertEqual(done.returncode, 0)
+        self.assertEqual(server.wait(15), 0)
+        self.assertEqual(self.check()[0], process_manager.CHECK_NOT_RUNNING)
+
+    def test_left_behind_mark_of_a_dead_process_is_not_running(self):
+        self.runtime.mkdir(parents=True)
+        dead = subprocess.Popen([sys.executable, "-c", "pass"])
+        dead.wait(10)
+        (self.runtime / instance_lock.OWNER_NAME).write_text(
+            json.dumps({"kind": "desktop", "pid": dead.pid}), encoding="utf-8")
+        self.assertEqual(self.check()[0], process_manager.CHECK_NOT_RUNNING)
+
+    def test_never_takes_the_lock(self):
+        """ランチャーは起動を待つあいだ毎秒呼ぶ。錠を試しに取ると、ちょうど起動する版とぶつかる"""
+        with mock.patch.object(instance_lock.InstanceLock, "acquire_status",
+                               side_effect=AssertionError("錠を取りにいった")), \
+                mock.patch.dict(os.environ, {"COIL_TOOL_LOCAL_DIR": str(self.local)}), \
+                mock.patch("builtins.print"):
+            self.assertEqual(process_manager.main(["--check"]), process_manager.CHECK_NOT_RUNNING)
+
+
 class BrowserLauncherStyleTest(unittest.TestCase):
     """ランチャーと同じ頼み方でブラウザ版を確かめ・止める(ランチャーのコードが無くても流す)"""
 
@@ -290,11 +370,15 @@ import process_manager
 job = json.loads(sys.argv[2])
 out = {}
 if job["what"] == "probe":
+    from launcher import tool_entries
     out = {name: tool_registry.probe_tool_folder(path) for name, path in job["paths"].items()}
-    exe = tool_registry.Tool(app_id=out["exe"].get("app_id", ""), display_name="x", port=int(out["exe"].get("port", 0)),
-                             start_command=job["paths"]["exe"], ui_mode=out["exe"].get("ui_mode", ""))
-    out["exe_watches_window"] = exe.watches_window
     out["vbs_forwards"] = tool_registry.Tool(app_id="x", display_name="x", start_command=job["paths"]["vbs"]).forwards_args
+    entries = {name: tool_entries.for_start(path) for name, path in job["paths"].items()}
+    out["entries"] = {name: {"check": bool(e.check), "stop": bool(e.stop), "problem": e.problem}
+                      for name, e in entries.items()}
+elif job["what"] == "check":
+    from launcher import tool_entries
+    out["state"] = tool_entries.check(tool_entries.for_start(job["start"])).state
 else:
     url = "http://127.0.0.1:%d/api/health" % job["port"]
     found = health.wait_ready(url, job["app_id"], timeout=30)
@@ -324,23 +408,30 @@ class RealLauncherTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr[-3000:])
         return json.loads(done.stdout.strip().splitlines()[-1])
 
-    def test_registration_reads_app_json(self):
+    def tool_folder(self, *, entries=True):
+        """配布フォルダと同じ並び(exe は Tauri の exe の代わり。ランチャーは中の "tauri" の文字で見分ける)"""
         folder = temp_local_dir()
         (folder / "config").mkdir()
         (folder / "config" / "app.json").write_bytes((ROOT / "config" / "app.json").read_bytes())
-        for name in ("start.bat", "Start.vbs"):
+        names = ["start.bat", "Start.vbs", "stop.bat"]
+        if entries:
+            names += ["launcher_check.bat", "launcher_stop.bat"]
+        for name in names:
             (folder / name).write_bytes((ROOT / name).read_bytes())
-        # Tauri の exe の代わり(ランチャーは中の "tauri" の文字で見分ける)
         (folder / "CoilCalculator.exe").write_bytes(b"MZ" + b"\0" * 64 + b"tauri://localhost __TAURI__")
+        return folder
+
+    def test_registration_reads_app_json_and_finds_entries(self):
+        folder = self.tool_folder()
         got = self.run_launcher({"what": "probe", "paths": {
             "bat": str(folder / "start.bat"), "vbs": str(folder / "Start.vbs"),
             "exe": str(folder / "CoilCalculator.exe")}})
-        self.assertEqual(got["bat"]["app_id"], APP_ID)
-        self.assertNotIn("port", got["bat"], "ブラウザ版の行のポートは設定画面で入れる(8741)")
-        self.assertEqual(got["exe"]["app_id"], APP_ID)
+        for row in ("bat", "vbs", "exe"):
+            self.assertEqual(got[row]["app_id"], APP_ID)
+            self.assertEqual(got[row].get("port"), 8741)
+            # exe を選んだ PC でも Start.vbs を選んだ PC でも、同じフォルダの入口が使われる
+            self.assertEqual(got["entries"][row], {"check": True, "stop": True, "problem": ""})
         self.assertEqual(got["exe"].get("ui_mode"), "app")
-        self.assertNotIn("port", got["exe"])
-        self.assertTrue(got["exe_watches_window"], "exe の行は窓とプロセスで見る(/api/health を待たない)")
         self.assertTrue(got["vbs_forwards"], "Start.vbs は --no-browser を届ける")
 
     def start_browser(self, local, port):
@@ -351,25 +442,32 @@ class RealLauncherTest(unittest.TestCase):
         return server
 
     def test_launcher_waits_ready_and_stops_by_api(self):
+        """入口が無い(古いランチャー・入口を消した)ときの、ランチャーの止め方でも止まる"""
         local, port = temp_local_dir(), free_port()
         server = self.start_browser(local, port)
+        folder = self.tool_folder(entries=False)
         got = self.run_launcher({"what": "stop", "port": port, "app_id": APP_ID, "method": "shutdown_api",
-                                 "start": str(ROOT / "start.bat")})
+                                 "start": str(folder / "start.bat")})
         self.assertTrue(got["ready"], got)
         self.assertTrue(got["stopped"], got)
         self.assertEqual(got["method"], "shutdown-api")
         self.assertEqual(server.wait(15), 0)
 
-    @unittest.skipUnless(os.name == "nt", "stop.bat は Windows の cmd.exe で動かす")
-    def test_launcher_stops_by_stop_bat(self):
+    @unittest.skipUnless(os.name == "nt", "入口(.bat)は Windows の cmd.exe で動かす")
+    def test_launcher_checks_and_stops_by_entries(self):
         local, port = temp_local_dir(), free_port()
+        env = child_env(local)
+        start = str(ROOT / "start.bat")
+        self.assertEqual(self.run_launcher({"what": "check", "start": start}, env=env)["state"], "stopped")
         server = self.start_browser(local, port)
-        got = self.run_launcher({"what": "stop", "port": port, "app_id": APP_ID, "method": "stop_bat",
-                                 "start": str(ROOT / "start.bat")}, env=child_env(local))
-        self.assertTrue(got["ready"], got)
+        self.assertTrue(wait_for(lambda: self.run_launcher({"what": "check", "start": start}, env=env)["state"]
+                                 == "ready", 40))
+        got = self.run_launcher({"what": "stop", "port": port, "app_id": APP_ID, "method": "auto",
+                                 "start": start}, env=env)
         self.assertTrue(got["stopped"], got)
-        self.assertEqual(got["method"], "stop.bat")
+        self.assertEqual(got["method"], "launcher_stop.bat", "ツールの入口を優先して使う")
         self.assertEqual(server.wait(15), 0)
+        self.assertEqual(self.run_launcher({"what": "check", "start": start}, env=env)["state"], "stopped")
 
 
 if __name__ == "__main__":

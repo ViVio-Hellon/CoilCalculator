@@ -17,7 +17,8 @@
     9. 動いている間に、VC計算マスタ(読み終えたあと)を差し替えられる(写してから読むので掴まない)
    10. stop.bat(業務ツール統合ランチャーが止めるときに使う)で、**確かめを出さずに**終わる
        (×の確かめは「やめる」にしておく ── 確かめを通ったら終わらないので分かる)
-       LAUNCHER_REPO があれば(Windows)、ランチャー本体のコードで「stop.bat で止める」も確かめる
+       LAUNCHER_REPO があれば(Windows)、ランチャー本体のコードで、配布と同じ並び(exe の隣に
+       launcher_check.bat・launcher_stop.bat)の入口を使って確かめ・止めるのも確かめる
 
 使い方:
     python scripts/desktop_smoke.py --exe src-tauri/target/release/CoilCalculator.exe
@@ -235,20 +236,27 @@ def stop(app: subprocess.Popen) -> None:
 LAUNCHER_STOP = r"""
 import json, sys
 sys.path.insert(0, sys.argv[1])
+from launcher import tool_entries
 from launcher.runtime_state import RunningTool
 import process_manager
 job = json.loads(sys.argv[2])
+entries = tool_entries.for_start(job["exe"])
+before = tool_entries.check(entries).state
 running = RunningTool(app_id="nlm.coil-calculator", ui_mode="app", start_command=job["exe"],
-                      stop_command=job["stop"], stop_method="stop_bat", app_root=job["root"])
+                      port=8741, health_url="http://127.0.0.1:8741/api/health", app_root=job["root"])
 result = process_manager.stop(running, timeout=30)
-print(json.dumps({"stopped": result.stopped, "method": result.method, "message": result.message},
-                 ensure_ascii=False))
+print(json.dumps({"stopped": result.stopped, "method": result.method, "message": result.message,
+                  "before": before, "after": tool_entries.check(entries).state}, ensure_ascii=False))
 """
 
 
 def launcher_stop(repo: str, exe: Path, env: dict, work: Path) -> dict:
-    """ランチャー本体の process_manager.stop で、アプリの窓の行(exe)を stop.bat で止める。"""
-    job = {"exe": str(exe.resolve()), "stop": str(ROOT / "stop.bat"), "root": str(ROOT)}
+    """ランチャー本体の process_manager.stop で、アプリの窓の行(exe)を止める。
+
+    行の作りは配布先設定のまま(停止方法「自動」・app.json から入ったポート 8741)。exe の隣の
+    入口(launcher_check.bat・launcher_stop.bat)が、ランチャーの推測より優先されることを見る。
+    """
+    job = {"exe": str(exe.resolve()), "root": str(ROOT)}
     run_env = dict(env, BUSINESS_TOOLS_LAUNCHER_LOCAL_DIR=str(work / "launcher"))
     done = subprocess.run([sys.executable, "-c", LAUNCHER_STOP, repo, json.dumps(job)], cwd=repo,
                           env=run_env, capture_output=True, text=True, encoding="utf-8",
@@ -407,19 +415,38 @@ def main() -> int:
 
     launcher_repo = os.environ.get("LAUNCHER_REPO", "")
     if WINDOWS and launcher_repo and (Path(launcher_repo) / "launcher").is_dir():
-        target, ready = launch(quiet_env)
-        check(ready, "もう一度起動しました(ランチャーからの停止の確かめ用)", "もう一度起動できませんでした")
-        if ready:
-            got = launcher_stop(launcher_repo, Path(args.exe), quiet_env, work)
-            try:
-                target.wait(20)
-            except subprocess.TimeoutExpired:
-                pass
-            check(got.get("stopped") is True and target.poll() is not None,
-                  f"ランチャー本体のコードで、デスクトップ版を止められました({got.get('method')})",
-                  f"ランチャーから止められません: {got}")
-        if target.poll() is None:
-            force_stop(target)
+        # 配布と同じ並び: exe をアプリのフォルダの直下(入口の隣)に置いて起動する
+        placed = ROOT / "CoilCalculator.exe"
+        made_here = not placed.exists()          # 元から置いてある exe は消さない
+        if made_here:
+            shutil.copy2(args.exe, placed)
+        try:
+            target = subprocess.Popen([str(placed)], env=quiet_env, cwd=str(ROOT))
+            since = len(log_text(work))
+            ready = wait_for(lambda: "最初の計算を返しました: vc (desktop)" in log_text(work)[since:]
+                             or target.poll() is not None, args.timeout, 0.5) and target.poll() is None
+            check(ready, "アプリのフォルダの直下に置いた exe で起動しました(ランチャーの確かめ用)",
+                  "アプリのフォルダの直下に置いた exe で起動できませんでした")
+            if ready:
+                got = launcher_stop(launcher_repo, placed, quiet_env, work)
+                try:
+                    target.wait(20)
+                except subprocess.TimeoutExpired:
+                    pass
+                by_entries = (got.get("stopped") is True and got.get("method") == "launcher_stop.bat"
+                              and got.get("before") == "ready" and got.get("after") == "stopped")
+                check(by_entries and target.poll() is not None,
+                      "ランチャー本体のコードで、入口(launcher_check.bat → 使える、launcher_stop.bat → "
+                      "確かめ無しで終了 → 動いていない)を使ってデスクトップ版を止めました",
+                      f"ランチャーの入口での確かめ・停止が違います: {got}(exe {target.poll()})")
+            if target.poll() is None:
+                force_stop(target)
+        finally:
+            if made_here:
+                try:
+                    placed.unlink()
+                except OSError:
+                    pass
 
     # ---- 5: ブラウザ版が先に動いているとき -------------------------------------
     browser = subprocess.Popen(browser_cmd, env=env, cwd=str(ROOT),

@@ -14,7 +14,7 @@ import unittest
 
 from tests._helpers import ROOT
 
-BATCH_FILES = ("start.bat", "stop.bat")
+BATCH_FILES = ("start.bat", "stop.bat", "launcher_check.bat", "launcher_stop.bat")
 VBS_FILES = ("Start.vbs",)
 MARKER = "VC長さ・コイル平板 計算ツール"
 

@@ -53,6 +53,8 @@ ROOT = Path(__file__).resolve().parent.parent
 INCLUDE: Tuple[str, ...] = (
     "README.md",
     "Start.vbs", "start.bat", "stop.bat",
+    # 業務ツール統合ランチャー 1.7.0 の入口(起動確認・終了。docs/ランチャー連携.md)
+    "launcher_check.bat", "launcher_stop.bat",
     "start_app.py", "bridge.py", "process_manager.py",
     "app", "coilcalc", "config",
     # VBA の解析・設計の記録。README が指す
@@ -83,7 +85,7 @@ EXE_CANDIDATES: Tuple[str, ...] = (
 )
 
 #: 起動ファイル(CP932 + CRLF で配る)
-LAUNCH_FILES: Tuple[str, ...] = ("Start.vbs", "start.bat", "stop.bat")
+LAUNCH_FILES: Tuple[str, ...] = ("Start.vbs", "start.bat", "stop.bat", "launcher_check.bat", "launcher_stop.bat")
 
 
 def _config() -> dict:

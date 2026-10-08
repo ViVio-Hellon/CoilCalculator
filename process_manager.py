@@ -4,6 +4,8 @@
     python process_manager.py --status  何が動いているかだけ出す
     python process_manager.py --force   VC計算マスタへ書いている最中でも止める。
                                         頼んでも止まらなければ pid で止める
+    python process_manager.py --check   使えるか(launcher_check.bat)。0 = 使える / 2 = 準備中 /
+                                        1 = 動いていない。最後の1行に今の様子
 
 止め方(どれも**確かめの窓を出さない** ── stop.bat は「止める」と決めて実行するもの):
 
@@ -11,7 +13,8 @@
     デスクトップ版  ポートが無いので、錠の隣に「止める頼み」を置く(coilcalc/stop_request.py)。
                     動いている Python が見つけて、外枠ごと終わる
 
-止まったことは錠が外れることで確かめます。戻り値: 0 = 止まった(動いていなかった)/ 1 = 止まらない。
+止まったことは錠が外れることで確かめます。戻り値: 0 = 止まった(動いていなかった)/ 1 = 止まらない
+(最後の1行に理由。launcher_stop.bat から呼ぶとランチャーがそのまま利用者に出す)。
 **ほかの Python アプリには触りません**(頼みは錠の持ち主の pid 宛て。pid で止めるのも、
 錠を握っている持ち主 = このツールだけ)。
 """
@@ -72,6 +75,40 @@ def kill(pid: int) -> None:
             pass
 
 
+def health_of(url: str) -> dict:
+    try:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(url.rstrip("/") + "/api/health", timeout=2) as res:
+            data = json.loads(res.read().decode("utf-8"))
+            return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+#: launcher_check.bat の終了コード(業務ツール統合ランチャー 1.7.0 の取り決め)
+CHECK_READY, CHECK_NOT_RUNNING, CHECK_STARTING = 0, 1, 2
+
+
+def check() -> int:
+    """使えるか。**錠を取りにいかない**(ランチャーは起動を待つあいだ毎秒これを呼ぶ。
+    錠を試しに取ると、ちょうど錠を取ろうとしている版が「もう一方が動いている」と止まる)。"""
+    found = instance_lock.running_owner(app_config.runtime_candidates())
+    if found is None:
+        print("動いていません")
+        return CHECK_NOT_RUNNING
+    _, owner = found
+    if owner.get("kind") == instance_lock.KIND_BROWSER:
+        url = str(owner.get("url") or "")
+        body = health_of(url) if url else {}
+        if body.get("app_id") == app_config.load().get("app_id") and body.get("ready") is True:
+            print(f"ブラウザ版が使えます({url})")
+            return CHECK_READY
+        print("ブラウザ版を準備しています")
+        return CHECK_STARTING
+    print(f"{instance_lock.describe(owner)} が動いています")
+    return CHECK_READY
+
+
 #: 頼んでから止まるのを待つ上限(秒)。VC計算マスタへ書いている最中なら書き終わるまで待つ(最大15秒)
 GRACEFUL_WAIT = 25.0
 FORCE_WAIT = 8.0
@@ -81,7 +118,10 @@ def main(argv: Optional[list] = None) -> int:
     parser = argparse.ArgumentParser(description="VC長さ・コイル平板 計算ツールを止める")
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
+    if args.check:
+        return check()
 
     runtime = instance_lock.find_busy(app_config.runtime_candidates())
     if runtime is None:
@@ -108,8 +148,9 @@ def main(argv: Optional[list] = None) -> int:
             return 0
         stop_request.withdraw(runtime)
     if not args.force:
-        print("止まりませんでした。VC計算マスタへ書いている最中かもしれません。"
-              "少し待ってからもう一度実行するか、stop.bat --force で止めてください。")
+        # 最後の1行はランチャーが「止めなかった理由」として出す
+        print("少し待ってからもう一度止めるか、強制終了(stop.bat --force)を選んでください。")
+        print("VC計算マスタへの書き込みが終わらないため、止めませんでした")
         return 1
     if not isinstance(pid, int):
         print("止める相手(pid)が分かりません。")

@@ -8,6 +8,7 @@ r"""起動ファイル(start.bat / stop.bat / Start.vbs)を **Windows で本当�
     start.bat(ブラウザを開かない)→ 起動 → stop.bat で止める → start.bat も 0 で終わる
     Start.vbs(cscript)        → pythonw で起動 → stop.bat で止める
     Start.vbs --no-browser --port N(ランチャーと同じ渡し方)→ 引数が届いて N で待ち受ける
+    launcher_check.bat → 1(動いていない)/ 0(使える)、launcher_stop.bat で止まる(ランチャーと同じ呼び方)
 """
 from __future__ import annotations
 
@@ -112,6 +113,37 @@ class LaunchFilesOnWindowsTest(unittest.TestCase):
             self.assertIn(f":{port}/", owner(self.local)["url"], "--port が届いていません")
         finally:
             self.stop()
+
+    def entry(self, name):
+        """ランチャー(tool_entries._run)と同じ呼び方: bat を直接・標準入力なし・作業フォルダは隣"""
+        done = subprocess.run([str(ROOT / name)], cwd=str(ROOT), env=self.env, stdin=subprocess.DEVNULL,
+                              capture_output=True, timeout=60)
+        out = (done.stdout + done.stderr)
+        try:
+            text = out.decode("utf-8")
+        except UnicodeDecodeError:
+            text = out.decode("cp932", errors="replace")
+        return done.returncode, text
+
+    def test_launcher_entries(self):
+        code, out = self.entry("launcher_check.bat")
+        self.assert_no_cmd_error(out)
+        self.assertEqual(code, 1, out)
+        self.assertIn("動いていません", out)
+        port = str(free_port())
+        proc = subprocess.Popen(["cmd", "/c", "start.bat", "--no-browser", "--port", port], cwd=str(ROOT),
+                                env=self.env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
+        try:
+            self.assertTrue(wait_for(lambda: self.entry("launcher_check.bat")[0] == 0), "使える にならない")
+            code, out = self.entry("launcher_stop.bat")
+            self.assert_no_cmd_error(out)
+            self.assertEqual(code, 0, out)
+            proc.communicate(timeout=60)
+            self.assertEqual(self.entry("launcher_check.bat")[0], 1)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
 
 
 if __name__ == "__main__":

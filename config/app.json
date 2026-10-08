@@ -1,12 +1,13 @@
 {
   "app_id": "nlm.coil-calculator",
   "display_name": "VC長さ・コイル平板 計算ツール",
-  "version": "2.1.0",
+  "version": "2.2.0",
 
   "local_dir_name": "CoilCalculator",
 
   "server": {
     "host": "127.0.0.1",
+    "port": 8741,
     "port_retry": 5
   },
 

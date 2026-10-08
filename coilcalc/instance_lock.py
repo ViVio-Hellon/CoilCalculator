@@ -188,6 +188,56 @@ def read_owner(runtime_dir: Path, *, wait: float = 2.0) -> Optional[Dict[str, An
         time.sleep(0.1)
 
 
+def pid_alive(pid: Any) -> bool:
+    """その pid のプロセスが動いているか。**錠に触らずに**確かめる(launcher_check.bat 用)。
+
+    Windows の `os.kill(pid, 0)` は CTRL_C を送ってしまうので使わない(OpenProcess で見る)。
+    """
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+        kernel32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        handle = kernel32.OpenProcess(0x1000, False, pid)      # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return ctypes.get_last_error() == 5                # 見る権限が無い = 動いてはいる
+        try:
+            code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return False
+            return code.value == 259                           # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def running_owner(candidates: Iterable[Path]) -> Optional[Tuple[Path, Dict[str, Any]]]:
+    """動いている持ち主(錠の場所, 印)。**錠を取りにいかない**(取ると、ちょうど起動する版とぶつかる)。
+
+    印(instance.json)の pid が生きていれば動いているとみなす。落ちて残った印は、pid が
+    もういないので数えない。
+    """
+    for place in candidates:
+        owner = read_owner(Path(place), wait=0)
+        if owner and pid_alive(owner.get("pid")):
+            return Path(place), owner
+    return None
+
+
 def describe(owner: Optional[Dict[str, Any]]) -> str:
     """利用者に出す「何が動いているか」。"""
     kind = (owner or {}).get("kind")

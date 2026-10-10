@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -114,6 +115,95 @@ class BuildTest(unittest.TestCase):
             proc.stdin.close()
             proc.wait(10)
             proc.stdout.close()
+
+
+class ShortcutScriptTest(unittest.TestCase):
+    """配った先で押す `scripts\\make_shortcuts.vbs`(Start.vbs と exe のショートカットを、押したときの場所で作る)。
+    作りは python-web-tools(梱包資材総合ツール)の同じ名前のファイルと同じ。"""
+
+    PATH = ROOT / "scripts" / "make_shortcuts.vbs"
+    NAME = "VC長さ・コイル平板 計算ツール"
+
+    def text(self) -> str:
+        return self.PATH.read_bytes().decode("cp932")
+
+    def names(self) -> dict:
+        """`NAME = U("0056 …")` を文字にもどす(.vbs の中では文字の番号で持つ)。"""
+        import re
+        out = {}
+        for name, codes in re.findall(r'^(\w+) = U\("([0-9A-F ]+)"\)', self.text(), re.M):
+            out[name] = "".join(chr(int(c, 16)) for c in codes.split())
+        return out
+
+    def test_cp932_crlf_no_bom(self):
+        data = self.PATH.read_bytes()
+        self.assertNotEqual(data[:3], b"\xef\xbb\xbf")
+        self.assertEqual(data.count(b"\n"), data.count(b"\r\n"), "改行は CRLF だけ")
+        with self.assertRaises(UnicodeDecodeError, msg="UTF-8 で保存し直されていない"):
+            data.decode("utf-8")
+        self.assertIn(self.NAME, self.text())
+
+    def test_names_are_built_from_code_points(self):
+        """英語の Windows でも名前が化けないように(python-web-tools の CI で実際に化けた)。"""
+        self.assertEqual(self.names(), {"APP_NAME": self.NAME, "BROWSER": "(ブラウザ版)",
+                                        "DESKTOP": "(デスクトップ版)"})
+        self.assertEqual(self.NAME, json.loads((ROOT / "config" / "app.json").read_text(
+            encoding="utf-8"))["display_name"], "ショートカットの名前はツールの表示名")
+        self.assertIn(f'EXE_NAME = "{make_dist.EXE_NAME}"', self.text())
+        for line in self.text().splitlines():
+            code = line.split("'", 1)[0]
+            quoted = code.split('"')[1::2]
+            self.assertFalse(any(".lnk" in q and not q.isascii() for q in quoted), line)
+
+    def test_points_at_start_vbs_and_exe_from_where_it_is_run(self):
+        text = self.text()
+        self.assertIn('MakeLink APP_NAME & BROWSER & ".lnk", "Start.vbs", False', text)
+        self.assertIn('MakeLink APP_NAME & DESKTOP & ".lnk", EXE_NAME, True', text)
+        self.assertIn("fso.GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName))", text)
+        self.assertIn('lnk.IconLocation = target & ",0"', text, "デスクトップ版は exe のアイコン")
+        self.assertNotIn("msgbox", text.lower(), "結果は WScript.Echo(cscript では文字で出て止まらない)")
+
+    def test_only_this_script_goes_into_the_dist_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out, _ = make_dist.build(Path(tmp) / "dist")
+            self.assertEqual(sorted(p.name for p in (out / "scripts").iterdir()), ["make_shortcuts.vbs"])
+            self.assertEqual((out / "scripts" / "make_shortcuts.vbs").read_bytes(), self.PATH.read_bytes())
+            memo = (out / "配布メモ.txt").read_text(encoding="utf-8-sig")
+            self.assertIn("scripts\\make_shortcuts.vbs", memo)
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows の cscript で本当に作る")
+    def test_windows_makes_the_shortcuts(self):
+        import shutil
+        with tempfile.TemporaryDirectory() as tmp:
+            tool = Path(tmp) / "VC長さ・コイル平板 計算ツール_VER9"
+            (tool / "scripts").mkdir(parents=True)
+            shutil.copy2(self.PATH, tool / "scripts" / "make_shortcuts.vbs")
+            (tool / "Start.vbs").write_bytes(b"' x\r\n")
+
+            def run():
+                return subprocess.run(["cscript", "//nologo", str(tool / "scripts" / "make_shortcuts.vbs")],
+                                      capture_output=True, timeout=60)
+            browser = tool / f"{self.NAME}(ブラウザ版).lnk"
+            desktop = tool / f"{self.NAME}(デスクトップ版).lnk"
+            # exe が無いフォルダ: デスクトップ版は作らず、そのことを知らせる
+            done = run()
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertTrue(browser.exists())
+            self.assertFalse(desktop.exists())
+            self.assertIn(b"CoilCalculator.exe", done.stdout)
+            # exe を置いて押し直す: 2つになる(何度押しても作り直すだけ)
+            (tool / make_dist.EXE_NAME).write_bytes(b"MZ")
+            for _ in range(2):
+                done = run()
+                self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertTrue(browser.exists())
+            self.assertTrue(desktop.exists())
+            # 指す先は押したときのフォルダ
+            ps = subprocess.run(["powershell", "-NoProfile", "-Command",
+                                 "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:LNK);"
+                                 "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $s.TargetPath"],
+                                env=dict(os.environ, LNK=str(desktop)), capture_output=True, timeout=60)
+            self.assertEqual(ps.stdout.decode("utf-8", "replace").strip(), str(tool / make_dist.EXE_NAME))
 
 
 class GuardTest(unittest.TestCase):

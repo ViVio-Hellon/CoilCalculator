@@ -103,3 +103,14 @@ jobs:
           name: CoilCalculator-dist
           path: ${{ runner.temp }}/CoilCalculator-dist
           if-no-files-found: error
+
+      # 配った先ですること: scripts\make_shortcuts.vbs を押すと、ツールのフォルダにショートカットが2つできる。
+      # 成果物を上げたあとに流す(配布物にショートカットを混ぜない。指す先がこの機械の場所になるため)
+      - name: 配布フォルダで scripts\make_shortcuts.vbs を押す
+        shell: cmd
+        run: |
+          cd /d "${{ runner.temp }}\CoilCalculator-dist"
+          cscript //nologo scripts\make_shortcuts.vbs
+          if errorlevel 1 exit /b 1
+          dir /b *.lnk
+          for /f %%n in ('dir /b *.lnk ^| find /c /v ""') do if not "%%n"=="2" (echo expected 2 shortcuts & exit /b 1)

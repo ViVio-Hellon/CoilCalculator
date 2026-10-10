@@ -7,6 +7,8 @@ r"""配布用フォルダを作る(日報管理ツール・python-web-tools の 
 
     tests\ / scripts\ / src-tauri\ / .git / __pycache__   … 開発にしか使わないもの
     CoilCalculator.exe(デスクトップ版)                  … ソースには無い。GitHub Actions が作る
+    scripts\make_shortcuts.vbs                          … scripts のうちこれだけは配る(配った先で押すと
+                                                           ツールのフォルダに2つのショートカットを作る)
 
 端末ごとの中身(ログ・錠・端末の設定・マスタの写し)は `%LOCALAPPDATA%\CoilCalculator`
 にあり、ツールのフォルダには入っていません。**配るものだけ**を新しいフォルダへ写します。
@@ -74,8 +76,12 @@ EXCLUDE_NAMES: Tuple[str, ...] = (
     "htmlcov", "*.tmp", "*.part", "*.smoke", "*.new", ".DS_Store", "Thumbs.db",
 )
 
-#: できたフォルダに**入っていてはいけない**もの(最後に確かめる)
-FORBIDDEN: Tuple[str, ...] = ("tests", "scripts", "src-tauri", ".git", ".github")
+#: scripts のうち、**配った先で使う**もの(配布フォルダの scripts\ にはこれだけ入る)
+#:   make_shortcuts.vbs … 配った先で押すと、Start.vbs と exe のショートカットをツールのフォルダに作る
+DIST_SCRIPTS: Tuple[str, ...] = ("make_shortcuts.vbs",)
+
+#: できたフォルダに**入っていてはいけない**もの(最後に確かめる)。scripts は DIST_SCRIPTS だけなら入ってよい
+FORBIDDEN: Tuple[str, ...] = ("tests", "src-tauri", ".git", ".github")
 
 #: 配るデスクトップ版の名前と、探す場所(先に見つかったもの)
 EXE_NAME = "CoilCalculator.exe"
@@ -201,6 +207,13 @@ def build(out: Path, *, force: bool = False, make_zip: bool = False,
             shutil.copytree(src, out / name, ignore=_ignore, dirs_exist_ok=True)
         else:
             shutil.copy2(src, out / name)
+    for name in DIST_SCRIPTS:
+        src = ROOT / "scripts" / name
+        if not src.is_file():
+            missing.append("scripts/" + name)
+            continue
+        (out / "scripts").mkdir(exist_ok=True)
+        write_launch_file(src, out / "scripts" / name)        # .vbs は CP932 + CRLF で配る
     if missing:
         shutil.rmtree(out)
         raise SystemExit("配るはずのファイルがありません: " + ", ".join(missing))
@@ -248,6 +261,8 @@ def build(out: Path, *, force: bool = False, make_zip: bool = False,
 
     # 入っていてはいけないものが無いか、最後に確かめる
     leaked = [p for p in FORBIDDEN if (out / p).exists()]
+    if (out / "scripts").exists():
+        leaked += ["scripts/" + p.name for p in (out / "scripts").iterdir() if p.name not in DIST_SCRIPTS]
     leaked += [str(p.relative_to(out)) for p in out.rglob("*") if _excluded(p.name)]
     if leaked:
         shutil.rmtree(out)
@@ -277,11 +292,15 @@ def _memo(lines: List[str]) -> str:
         f"  3. {EXE_NAME} で起動する(デスクトップ版。ポートを使いません)。",
         "     exe が無いとき・動かないときは Start.vbs(ブラウザ版)で起動できます。",
         "     起動しないときは start.bat で原因が出ます",
-        "  4. VC計算マスタを共有するなら、設定 → マスタの置き場所 を確かめる",
-        "  5. 以前の版を使っていた端末は、この端末の設定・マスタの写しがそのまま残ります",
+        "  4. ショートカットが欲しければ scripts\\make_shortcuts.vbs をダブルクリックする。",
+        f"     ツールのフォルダに「{_tool_name()}(ブラウザ版)」(Start.vbs)と",
+        f"     「{_tool_name()}(デスクトップ版)」({EXE_NAME})ができます。",
+        "     指す先は押したときのフォルダ。フォルダを移したら、もう一度押してください",
+        "  5. VC計算マスタを共有するなら、設定 → マスタの置き場所 を確かめる",
+        "  6. 以前の版を使っていた端末は、この端末の設定・マスタの写しがそのまま残ります",
         "     (%LOCALAPPDATA%\\CoilCalculator にあり、ツールのフォルダには入っていないため)",
         "",
-        "入れていないもの: tests・scripts・src-tauri(exe のソース)・__pycache__",
+        "入れていないもの: tests・scripts(make_shortcuts.vbs 以外)・src-tauri(exe のソース)・__pycache__",
         "",
     ])
 

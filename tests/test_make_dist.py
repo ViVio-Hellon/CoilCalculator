@@ -183,12 +183,16 @@ class ShortcutScriptTest(unittest.TestCase):
             def run():
                 return subprocess.run(["cscript", "//nologo", str(tool / "scripts" / "make_shortcuts.vbs")],
                                       capture_output=True, timeout=60)
+
+            def why(done):
+                out = (done.stdout + done.stderr).decode("mbcs", "replace")
+                return f"cscript: {out!r} / フォルダ: {sorted(p.name for p in tool.iterdir())!r}"
             browser = tool / f"{self.NAME}(ブラウザ版).lnk"
             desktop = tool / f"{self.NAME}(デスクトップ版).lnk"
             # exe が無いフォルダ: デスクトップ版は作らず、そのことを知らせる
             done = run()
-            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
-            self.assertTrue(browser.exists())
+            self.assertEqual(done.returncode, 0, why(done))
+            self.assertTrue(browser.exists(), why(done))
             self.assertFalse(desktop.exists())
             self.assertIn(b"CoilCalculator.exe", done.stdout)
             # exe を置いて押し直す: 2つになる(何度押しても作り直すだけ)

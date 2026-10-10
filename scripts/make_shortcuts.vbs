@@ -23,12 +23,13 @@ EXE_NAME = "CoilCalculator.exe"
 BROWSER = U("0028 30D6 30E9 30A6 30B6 7248 0029")                       ' (ブラウザ版)
 DESKTOP = U("0028 30C7 30B9 30AF 30C8 30C3 30D7 7248 0029")             ' (デスクトップ版)
 
-Dim shell, fso, here, made, missing
+Dim shell, fso, here, made, missing, failed
 Set shell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 here = fso.GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName))
 made = ""
 missing = ""
+failed = ""
 
 MakeLink APP_NAME & BROWSER & ".lnk", "Start.vbs", False
 MakeLink APP_NAME & DESKTOP & ".lnk", EXE_NAME, True
@@ -42,7 +43,11 @@ End If
 If missing <> "" Then
     msg = msg & vbCrLf & vbCrLf & "次は見つからないので作っていません:" & missing
 End If
+If failed <> "" Then
+    msg = msg & vbCrLf & vbCrLf & "次は保存できませんでした:" & failed
+End If
 WScript.Echo msg
+If failed <> "" Then WScript.Quit 1
 
 ' "0056 0043" のような文字の番号の並びを文字列にする
 Function U(codes)
@@ -62,11 +67,24 @@ Sub MakeLink(linkName, targetName, useIcon)
         missing = missing & vbCrLf & "  " & targetName
         Exit Sub
     End If
+    ' 保存できないとき(書けないフォルダ・名前に使えない文字)は、理由を結果の窓に出す
+    On Error Resume Next
     Set lnk = shell.CreateShortcut(fso.BuildPath(here, linkName))
     lnk.TargetPath = target
     lnk.WorkingDirectory = here
     lnk.Description = APP_NAME & "を起動する"
     If useIcon Then lnk.IconLocation = target & ",0"
     lnk.Save
+    If Err.Number <> 0 Then
+        failed = failed & vbCrLf & "  " & linkName & "(" & Err.Description & ")"
+        Err.Clear
+        On Error GoTo 0
+        Exit Sub
+    End If
+    On Error GoTo 0
+    If Not fso.FileExists(fso.BuildPath(here, linkName)) Then
+        failed = failed & vbCrLf & "  " & linkName & "(保存したはずのファイルがありません)"
+        Exit Sub
+    End If
     made = made & vbCrLf & "  " & linkName & " → " & targetName
 End Sub

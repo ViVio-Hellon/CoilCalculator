@@ -457,7 +457,8 @@ class RealLauncherTest(unittest.TestCase):
         # 1.7.1〜: exe の行にはブラウザ版のポートを入れない(入口が確かめるので、空で起動できる)
         self.assertNotIn("port", got["exe"])
         self.assertEqual(got["exe_problem"], "", "ポートが空でも起動できる(起動確認の入口がある)")
-        self.assertEqual(got["vbs_args"], "--no-browser", "Start.vbs に --no-browser が届く")
+        # 1.7.5〜: Start.vbs の起動引数は空(画面はふだんのブラウザーのタブ。利用者が決めた)
+        self.assertEqual(got["vbs_args"], "", "Start.vbs はふだんのブラウザーのタブで開く")
         self.assertEqual(got["exe"].get("ui_mode"), "app")
         self.assertTrue(got["vbs_forwards"], "Start.vbs は --no-browser を届ける")
 

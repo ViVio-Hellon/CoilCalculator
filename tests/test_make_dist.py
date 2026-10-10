@@ -160,7 +160,11 @@ class ShortcutScriptTest(unittest.TestCase):
         self.assertIn('MakeLink APP_NAME & BROWSER & ".lnk", "Start.vbs", False', text)
         self.assertIn('MakeLink APP_NAME & DESKTOP & ".lnk", EXE_NAME, True', text)
         self.assertIn("fso.GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName))", text)
-        self.assertIn('lnk.IconLocation = target & ",0"', text, "デスクトップ版は exe のアイコン")
+        self.assertIn("link.SetIconLocation target, 0", text, "デスクトップ版は exe のアイコン")
+        # 名前・指す先は Shell.Application(Unicode)で書く。WScript.Shell だけだと、システムの文字コードに
+        # 無い文字(英語の Windows での日本語)があると保存できない(CI で実際に「Unable to save shortcut」)
+        self.assertIn('CreateObject("Shell.Application")', text)
+        self.assertIn("link.Path = target", text)
         self.assertNotIn("msgbox", text.lower(), "結果は WScript.Echo(cscript では文字で出て止まらない)")
 
     def test_only_this_script_goes_into_the_dist_folder(self):
@@ -204,10 +208,16 @@ class ShortcutScriptTest(unittest.TestCase):
             self.assertTrue(desktop.exists())
             # 指す先は押したときのフォルダ
             ps = subprocess.run(["powershell", "-NoProfile", "-Command",
-                                 "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:LNK);"
-                                 "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $s.TargetPath"],
-                                env=dict(os.environ, LNK=str(desktop)), capture_output=True, timeout=60)
-            self.assertEqual(ps.stdout.decode("utf-8", "replace").strip(), str(tool / make_dist.EXE_NAME))
+                                 "[Console]::OutputEncoding=[Text.Encoding]::UTF8;"
+                                 "$l=(New-Object -ComObject Shell.Application).NameSpace($env:DIR)"
+                                 ".ParseName($env:NAME).GetLink; $l.Path; $l.WorkingDirectory"],
+                                env=dict(os.environ, DIR=str(tool), NAME=desktop.name),
+                                capture_output=True, timeout=60)
+            got = [line.strip() for line in ps.stdout.decode("utf-8", "replace").splitlines() if line.strip()]
+            # 8.3 形式(RUNNER~1)と長い名前の違いは問わない(どちらも同じフォルダ)
+            self.assertEqual([os.path.normcase(os.path.realpath(p)) for p in got],
+                             [os.path.normcase(os.path.realpath(str(tool / make_dist.EXE_NAME))),
+                              os.path.normcase(os.path.realpath(str(tool)))], ps.stderr)
 
 
 class GuardTest(unittest.TestCase):

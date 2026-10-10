@@ -61,30 +61,53 @@ Function U(codes)
 End Function
 
 Sub MakeLink(linkName, targetName, useIcon)
-    Dim target, lnk
+    Dim target, finalPath, reason
     target = fso.BuildPath(here, targetName)
     If Not fso.FileExists(target) Then
         missing = missing & vbCrLf & "  " & targetName
         Exit Sub
     End If
-    ' 保存できないとき(書けないフォルダ・名前に使えない文字)は、理由を結果の窓に出す
-    On Error Resume Next
-    Set lnk = shell.CreateShortcut(fso.BuildPath(here, linkName))
-    lnk.TargetPath = target
-    lnk.WorkingDirectory = here
-    lnk.Description = APP_NAME & "を起動する"
-    If useIcon Then lnk.IconLocation = target & ",0"
-    lnk.Save
-    If Err.Number <> 0 Then
-        failed = failed & vbCrLf & "  " & linkName & "(" & Err.Description & ")"
-        Err.Clear
-        On Error GoTo 0
-        Exit Sub
-    End If
-    On Error GoTo 0
-    If Not fso.FileExists(fso.BuildPath(here, linkName)) Then
-        failed = failed & vbCrLf & "  " & linkName & "(保存したはずのファイルがありません)"
+    finalPath = fso.BuildPath(here, linkName)
+    reason = WriteLink(finalPath, linkName, target, useIcon)
+    If reason = "" And Not fso.FileExists(finalPath) Then reason = "保存したはずのファイルがありません"
+    If reason <> "" Then
+        failed = failed & vbCrLf & "  " & linkName & "(" & reason & ")"
         Exit Sub
     End If
     made = made & vbCrLf & "  " & linkName & " → " & targetName
 End Sub
+
+' ショートカットを書く。書けなければ理由を返す(書けたら "")。
+' WScript.Shell のショートカットは**システムの文字コード**で名前と場所を扱うので、その文字コードに無い文字
+' (英語の Windows での日本語など)があると保存できない。そこで、
+'   1. WScript.Shell で一時フォルダに英字の名前の .lnk を作り(中身は仮)
+'   2. 本来の場所・名前へ写し(ファイルの操作は Unicode で通る)
+'   3. Shell.Application(Unicode で扱える)で指す先・作業フォルダ・アイコンを書き直す
+Function WriteLink(finalPath, linkName, target, useIcon)
+    Dim tmp, lnk, app, folder, item, link
+    On Error Resume Next
+    tmp = fso.BuildPath(fso.GetSpecialFolder(2), "coilcalc_shortcut_" & fso.GetTempName() & ".lnk")
+    Set lnk = shell.CreateShortcut(tmp)
+    lnk.TargetPath = fso.BuildPath(fso.GetSpecialFolder(1), "cmd.exe")
+    lnk.Save
+    If Err.Number <> 0 Then WriteLink = Why(): Exit Function
+    If fso.FileExists(finalPath) Then fso.DeleteFile finalPath, True
+    fso.CopyFile tmp, finalPath, True
+    fso.DeleteFile tmp, True
+    If Err.Number <> 0 Then WriteLink = Why(): Exit Function
+    Set app = CreateObject("Shell.Application")
+    Set folder = app.NameSpace(here)
+    Set item = folder.ParseName(linkName)
+    Set link = item.GetLink
+    link.Path = target
+    link.WorkingDirectory = here
+    link.Description = APP_NAME & "を起動する"
+    If useIcon Then link.SetIconLocation target, 0
+    link.Save
+    If Err.Number <> 0 Then WriteLink = Why(): Exit Function
+    WriteLink = ""
+End Function
+
+Function Why()
+    Why = "エラー " & Hex(Err.Number) & " " & Err.Description
+End Function

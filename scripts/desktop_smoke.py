@@ -17,6 +17,8 @@
     9. 動いている間に、VC計算マスタ(読み終えたあと)を差し替えられる(写してから読むので掴まない)
    10. stop.bat(業務ツール統合ランチャーが止めるときに使う)で、**確かめを出さずに**終わる
        (×の確かめは「やめる」にしておく ── 確かめを通ったら終わらないので分かる)
+   11. Python が起動できず、外枠が理由の画面を出したまま残っても、stop.bat(--force なし)で止まる
+       (統合ツール all-tools で、止める頼みに答える者がいなくて止まらず、フォルダも消せなかった件)
        LAUNCHER_REPO があれば(Windows)、ランチャー本体のコードで、配布と同じ並び(exe の隣に
        launcher_check.bat・launcher_stop.bat)の入口を使って確かめ・止めるのも確かめる
 
@@ -447,6 +449,32 @@ def main() -> int:
                     placed.unlink()
                 except OSError:
                     pass
+
+    # ---- 11: Python が起動できないまま残った外枠を stop.bat で止める ------------------
+    broken_env = dict(quiet_env, COIL_TOOL_PYTHON=str(work / "no-such-python" / "python.exe"))
+    stuck = subprocess.Popen([args.exe], env=broken_env, cwd=str(ROOT))
+    owner = work / "local" / "runtime" / "instance.json"
+    held = wait_for(lambda: owner.exists() or stuck.poll() is not None, 30)
+    time.sleep(2)                                # Python を探して、あきらめて理由の画面を出すまで
+    check(held and stuck.poll() is None, "Python が起動できないとき、外枠は理由の画面を出して残りました",
+          f"外枠が残りませんでした(終了コード {stuck.poll()})")
+    if stuck.poll() is None:
+        stop_cmd = (["cmd", "/c", str(ROOT / "stop.bat")] if WINDOWS
+                    else [sys.executable, str(ROOT / "process_manager.py")])
+        began = time.monotonic()
+        done = subprocess.run(stop_cmd, env=quiet_env, cwd=str(ROOT), stdin=subprocess.DEVNULL,
+                              capture_output=True, timeout=90)
+        try:
+            stuck.wait(15)
+        except subprocess.TimeoutExpired:
+            pass
+        took = time.monotonic() - began
+        check(done.returncode == 0 and stuck.poll() is not None and took < 15,
+              f"理由の画面を出したままの外枠も、stop.bat(--force なし)で止まりました({took:.1f}秒)",
+              f"理由の画面のまま stop.bat で止まりません(stop.bat {done.returncode}、exe {stuck.poll()}、"
+              f"{took:.1f}秒): " + (done.stdout + done.stderr).decode("cp932" if WINDOWS else "utf-8", "replace")[-600:])
+    if stuck.poll() is None:
+        force_stop(stuck)
 
     # ---- 5: ブラウザ版が先に動いているとき -------------------------------------
     browser = subprocess.Popen(browser_cmd, env=env, cwd=str(ROOT),

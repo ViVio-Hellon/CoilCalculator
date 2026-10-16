@@ -29,6 +29,7 @@ import os
 import socket
 import socketserver
 import sys
+import tempfile
 import threading
 import time
 import webbrowser
@@ -249,12 +250,28 @@ def watch_idle(app: web.App, stopped: threading.Event, browser: dict) -> None:
             return
 
 
+def leave_app_folder() -> None:
+    """作業場所(カレントフォルダ)を**ツールのフォルダから外す**。
+
+    Start.vbs はツールのフォルダを作業場所にして起動する。作業場所になっているフォルダは、
+    そのプロセスが生きているあいだ Windows では消せない。起動できなかったときの知らせ
+    (メッセージボックス)が出たままだと、言われたとおり「フォルダを丸ごとコピーし直そう」として
+    古いフォルダを消せない(統合ツール all-tools で、残った Python がフォルダを掴んでいた件と同じ形)。
+    中のファイルはどれも APP_ROOT からの道で開くので、作業場所はどこでもよい。
+    """
+    try:
+        os.chdir(tempfile.gettempdir())
+    except OSError:
+        pass
+
+
 def main(argv: Optional[list] = None) -> int:
     parser = argparse.ArgumentParser(description="VC長さ・コイル平板 計算ツール(ブラウザ版)")
     parser.add_argument("--check", action="store_true", help="動かせるかだけ確かめる")
     parser.add_argument("--no-browser", action="store_true", help="ブラウザを開かない")
     parser.add_argument("--port", type=int, default=None, help="待ち受けるポート(既定は config/app.json)")
     args = parser.parse_args(argv)
+    leave_app_folder()
 
     conf = app_config.load()
     logging_setup.setup(app_config.log_dir(conf), to_stderr=args.check)

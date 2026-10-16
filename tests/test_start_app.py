@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import threading
 import time
 import unittest
 import urllib.request
+from pathlib import Path
 
 from tests._helpers import ROOT, child_env, free_port, temp_local_dir
 from tests.test_instance_lock import hold_in_child
@@ -68,6 +70,22 @@ class BrowserVersionTest(unittest.TestCase):
         server.stderr.close()
         self.assertIsNone(instance_lock.read_owner(runtime, wait=0), "終わったら持ち主の印を消す")
         self.assertIn("動いていません", self.run_cmd(str(ROOT / "process_manager.py")).stdout)
+
+    @unittest.skipUnless(Path("/proc/self/cwd").exists(), "作業場所を /proc で見る")
+    def test_does_not_hold_the_app_folder_as_working_folder(self):
+        """作業場所がツールのフォルダのままだと、Windows ではそのフォルダを消せない。
+        起動できなかった知らせを出したまま残ったときに、コピーし直そうとして消せなかった(all-tools と同じ形)。"""
+        server = self.start()
+        self.addCleanup(lambda: server.poll() is None and server.kill())
+        runtime = self.local / "runtime"
+        self.assertTrue(wait_for(lambda: (instance_lock.read_owner(runtime, wait=0) or {}).get("url")))
+        cwd = Path(os.readlink(f"/proc/{server.pid}/cwd"))
+        self.assertNotEqual(cwd.resolve(), ROOT.resolve())
+        self.assertFalse(str(cwd.resolve()).startswith(str(ROOT.resolve()) + os.sep))
+        self.run_cmd(str(ROOT / "process_manager.py"))
+        server.wait(15)
+        server.stdout.close()
+        server.stderr.close()
 
     def test_refuses_while_desktop_is_open(self):
         desktop = hold_in_child(self.local / "runtime", instance_lock.KIND_DESKTOP)

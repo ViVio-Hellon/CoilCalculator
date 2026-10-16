@@ -158,7 +158,7 @@ def main(argv: Optional[list] = None) -> int:
             return done(0, "止めました。")
         stop_request.withdraw(runtime)
     if not args.force:
-        return done(1, "VC計算マスタへの書き込みが終わらないため、止めませんでした",
+        return done(1, "止める頼みに答えないため、止めませんでした(VC計算マスタへ書いている最中かもしれません)",
                     "少し待ってからもう一度止めるか、強制終了(stop.bat --force)を選んでください。")
     if not isinstance(pid, int):
         return done(1, "止める相手(pid)が分からないため、止めませんでした")

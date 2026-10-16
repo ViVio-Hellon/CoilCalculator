@@ -19,6 +19,7 @@ mod bridge;
 mod instance;
 mod pages;
 mod static_files;
+mod stop_request;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -366,6 +367,9 @@ fn main() {
                         eprintln!("作業フォルダが使えないので、錠を一時フォルダに置きました: {}", place.display());
                     }
                     instance::write_owner(&place);
+                    // stop.bat の頼みを外枠も見張る(Python が起動できなかった・落ちたときに受ける者がいないため)
+                    let handle = app.handle().clone();
+                    stop_request::watch(place.clone(), for_setup.clone(), move || handle.exit(0));
                     *held_setup.lock().unwrap() = Some(place);
                     // 終わるまで握っておく(プロセスが終われば OS が外す)
                     Box::leak(Box::new(lock));

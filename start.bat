@@ -62,7 +62,7 @@ if errorlevel 3 (
 if errorlevel 1 (
     echo.
     echo [エラー] 起動に失敗しました。上のメッセージを確認してください。
-    echo          ログ: %LOCALAPPDATA%\CoilCalculator\logs\coilcalc.log
+    echo          ログ: %LOCALAPPDATA%\CoilCalculator\logs\CoilCalculator\CoilCalculator_%COMPUTERNAME%.log
     echo.
     goto :failed
 )

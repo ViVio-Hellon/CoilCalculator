@@ -89,5 +89,29 @@ def runtime_candidates(conf: Dict[str, Any] = None) -> List[Path]:
     return [runtime_dir(conf), temp_root() / name / "runtime"]
 
 
+#: ログのファイル名・フォルダ名に入れるツールの名前(取り出したとき、開かなくても何のツールか分かるように)
+TOOL_NAME = "CoilCalculator"
+
+
 def log_dir(conf: Dict[str, Any] = None) -> Path:
-    return local_root(conf) / "logs"
+    """ログの置き場所。**ツールの名前のフォルダ**の下に置く(<作業フォルダ>\\logs\\CoilCalculator)。"""
+    return local_root(conf) / "logs" / TOOL_NAME
+
+
+def terminal_name() -> str:
+    """この端末の名前(ファイル名に使える文字だけ)。何台分のログを集めても混ざらないように。"""
+    import re
+    import socket
+
+    name = os.environ.get("COMPUTERNAME", "").strip()
+    if not name:
+        try:
+            name = socket.gethostname()
+        except OSError:
+            name = ""
+    return re.sub(r"[^0-9A-Za-z._-]+", "_", name).strip("._") or "PC"
+
+
+def log_file_name() -> str:
+    """ログのファイル名。**ツールの名前と端末の名前**を入れる(例: CoilCalculator_NLM-NGY-240638.log)。"""
+    return f"{TOOL_NAME}_{terminal_name()}.log"

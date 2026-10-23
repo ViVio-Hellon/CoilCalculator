@@ -118,8 +118,10 @@ def click(x: int, y: int) -> None:
 
 
 def desktop_shots(exe: str, env: dict, positions: dict, local: Path) -> None:
-    log = local / "logs" / "coilcalc.log"
-    ready = lambda: log.exists() and "最初の計算を返しました: vc (desktop)" in log.read_text(encoding="utf-8")
+    # ログはツールの名前のフォルダの下、ツールの名前と端末の名前の入ったファイル(起動してからできる)
+    logs = local / "logs" / "CoilCalculator"
+    ready = lambda: any("最初の計算を返しました: vc (desktop)" in p.read_text(encoding="utf-8")
+                        for p in logs.glob("CoilCalculator_*.log"))
 
     # 1. ふだんの窓・版の詳細・操作説明書の窓
     app = subprocess.Popen([exe], env=env, cwd=str(ROOT))

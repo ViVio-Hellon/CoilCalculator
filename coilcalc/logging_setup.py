@@ -1,4 +1,8 @@
-"""動作ログ。%LOCALAPPDATA%\\CoilCalculator\\logs\\coilcalc.log(1MB × 5 世代)"""
+"""動作ログ。%LOCALAPPDATA%\\CoilCalculator\\logs\\CoilCalculator\\CoilCalculator_<端末名>.log(1MB × 5 世代)
+
+ファイル名にもフォルダ名にもツールの名前を入れる。いろいろなツールのログを1か所に集めたり、
+ファイルだけ取り出したりしても、開かずに何のツールのものか分かるように(名前は `app_config`)。
+"""
 from __future__ import annotations
 
 import logging
@@ -22,7 +26,8 @@ def setup(log_dir: Path, *, to_stderr: bool = False, level: int = logging.INFO) 
     path: Optional[Path] = None
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
-        path = log_dir / "coilcalc.log"
+        from .app_config import log_file_name
+        path = log_dir / log_file_name()
         handler = logging.handlers.RotatingFileHandler(
             path, maxBytes=1024 * 1024, backupCount=5, encoding="utf-8")
         handler.setFormatter(logging.Formatter(FORMAT))

@@ -92,7 +92,8 @@ fn app_root() -> PathBuf {
 }
 
 fn log_hint(root: &Path) -> String {
-    instance::local_root(root).join("logs").display().to_string()
+    // ログはツールの名前のフォルダの下(Python の app_config.log_dir と同じ)
+    instance::local_root(root).join("logs").join("CoilCalculator").display().to_string()
 }
 
 fn respond(status: u16, content_type: &str, body: Vec<u8>) -> Response<Vec<u8>> {

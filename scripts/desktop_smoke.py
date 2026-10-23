@@ -205,8 +205,9 @@ def swap_app_files() -> list:
 
 
 def log_text(work: Path) -> str:
-    path = work / "local" / "logs" / "coilcalc.log"
-    return path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+    # ログはツールの名前のフォルダの下、ツールの名前と端末の名前の入ったファイル
+    found = sorted((work / "local" / "logs" / "CoilCalculator").glob("CoilCalculator_*.log"))
+    return found[0].read_text(encoding="utf-8", errors="replace") if found else ""
 
 
 def wait_for(predicate, timeout: float, step: float = 0.3) -> bool:

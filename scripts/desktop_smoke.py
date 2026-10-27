@@ -46,27 +46,37 @@ EXIT_OTHER_RUNNING = 3
 
 
 def children(pid: int) -> list:
-    """pid の子孫(孫も)。"""
+    """pid の子孫(孫も)。
+
+    **子は親より後に起動したものだけを数える。** Windows はプロセスの番号を使い回すので、とうに終わった
+    「親」と同じ番号をいまの exe が受け取ることがある。番号だけでたどると、その古い親を持つ Windows 自体の
+    プロセスまで子孫に数えてしまう(CI で実際に、120 個近いプロセスを「取り残された」と言った)。
+    """
+    rows = []                                    # (pid, 親の pid, 起動した時刻)
     if WINDOWS:
         out = subprocess.run(
             ["powershell", "-NoProfile", "-Command",
-             "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId) $($_.ParentProcessId)\" }"],
+             "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId) $($_.ParentProcessId) "
+             "$(if ($_.CreationDate) { $_.CreationDate.ToFileTimeUtc() } else { 0 })\" }"],
             capture_output=True, text=True).stdout
-        pairs = [tuple(map(int, line.split())) for line in out.splitlines() if line.strip()]
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) == 3 and all(p.isdigit() for p in parts):
+                rows.append(tuple(map(int, parts)))
     else:
-        pairs = []
         for name in os.listdir("/proc"):
             if name.isdigit():
                 try:
-                    stat = Path(f"/proc/{name}/stat").read_text()
-                    pairs.append((int(name), int(stat.rsplit(")", 1)[1].split()[1])))
+                    fields = Path(f"/proc/{name}/stat").read_text().rsplit(")", 1)[1].split()
+                    rows.append((int(name), int(fields[1]), int(fields[19])))
                 except (OSError, ValueError, IndexError):
                     pass
+    started = {p: t for p, _, t in rows}
     found, frontier = [], [pid]
     while frontier:
         parent = frontier.pop()
-        for child, ppid in pairs:
-            if ppid == parent and child not in found:
+        for child, ppid, t in rows:
+            if ppid == parent and child not in found and child != pid and t >= started.get(parent, 0):
                 found.append(child)
                 frontier.append(child)
     return found

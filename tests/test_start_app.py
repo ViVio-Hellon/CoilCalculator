@@ -159,12 +159,12 @@ class IdleExitTest(unittest.TestCase):
     def test_waits_for_first_page_then_ends_when_idle(self):
         app = web.App(web.MODE_BROWSER)
         stopped = threading.Event()
-        browser = {"idle_exit_seconds": 0.4, "first_open_grace_seconds": 30}
+        browser = {"idle_exit_seconds": 0.4, "first_open_grace_seconds": 30, "closed_exit_seconds": 0.4}
         t = threading.Thread(target=start_app.watch_idle, args=(app, stopped, browser))
         t.start()
         time.sleep(1.5)
         self.assertTrue(t.is_alive(), "画面が来るまでは長めに待つ")
-        app.touch()                               # 画面が来た(計算・知らせ)
+        app.pages.beat("p1")                      # 画面が来た(知らせ)
         t.join(5)
         self.assertFalse(t.is_alive(), "知らせが途絶えたら終わる")
 

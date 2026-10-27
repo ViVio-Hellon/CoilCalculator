@@ -15,7 +15,8 @@
   ブラウザ版のときだけ:
     - 左上の「終了」を出す(デスクトップ版は窓の × で閉じる)
     - 画面が開いていることを数秒ごとに知らせる。タブを全部閉じるとしばらくして
-      Python が自分で終わる(残っているとデスクトップ版が開けないため)
+      Python が自分で終わる(残っているとデスクトップ版が開けないため)。
+      裏に回る・閉じるときも知らせる(裏のタブ・スリープで心拍が止まっても終わらない。watchPage)
 
   繋がらないときは上に帯を出す(計算の欄はそのまま。繋がり直せば帯は消える)。
 
@@ -137,15 +138,66 @@
             button.hidden = false;
             button.addEventListener('click', quit);
         }
-        const every = Math.max(3, Number(health.heartbeat_seconds) || 10) * 1000;
-        const beat = () => post('/api/heartbeat', {}).then(hideBanner).catch(() => {
-            showBanner('ブラウザ版の処理が終わっています。Start.vbs をもう一度開いてください。');
-        });
-        setInterval(beat, every);
-        // タブに戻ってきたらすぐ知らせる(背景のタブは時計が間引かれる)
+        watchPage(Math.max(3, Number(health.heartbeat_seconds) || 10) * 1000);
+    }
+
+    /**
+     * 画面が開いていることを Python に知らせる(タブを全部閉じたら Python が自分で終わる)。
+     * **画面ごとの番号**と様子を添える(coilcalc/page_watch.py):
+     *   visible  表にいる(数秒ごと・表に戻った・止まっていたところから戻った)
+     *   hidden   裏に回る・ブラウザに止められる。このあと心拍が途切れても Python は終わらない
+     *   closed   閉じる(読み直しも)
+     * ブラウザは裏のタブのタイマーを間引く・止める(Chrome は5分で1分に1回、Edge の「スリープ中の
+     * タブ」では止める)。PC のスリープ中も止まる。以前は心拍だけだったので、使っている最中に
+     * Python が終わることがあった(梱包資材総合ツール・日報で実際に起きた)。
+     */
+    function watchPage(every) {
+        const page = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+        const body = (state, extra) => JSON.stringify(Object.assign({ page, state }, extra || {}));
+        const nowState = () => (document.hidden ? 'hidden' : 'visible');
+        // 心拍。答えが無ければ帯で知らせる(Python が終わっている)
+        const beat = (extra) => post('/api/heartbeat', Object.assign({ page, state: nowState() }, extra || {}))
+            .then(hideBanner)
+            .catch(() => {
+                showBanner('ブラウザ版の処理が終わっています。Start.vbs をもう一度開いてください。');
+            });
+        // 隠れる・閉じるときの知らせ。**このあとタブが止まっても・閉じても届く**送り方で
+        const tell = (state) => {
+            try {
+                fetch('/api/heartbeat', {
+                    method: 'POST', keepalive: true,
+                    headers: { 'Content-Type': 'application/json' }, body: body(state)
+                }).catch(() => { /* 届かなくてもよい(Python が終わっている) */ });
+            } catch (err) {
+                try {
+                    navigator.sendBeacon('/api/heartbeat',
+                        new Blob([body(state)], { type: 'application/json' }));
+                } catch (err2) { /* 送れない */ }
+            }
+        };
+
+        let last = Date.now();
+        beat();                                              // 開いたらすぐ(読み直したときに待たせない)
+        setInterval(() => {
+            const now = Date.now();
+            const gap = now - last;
+            last = now;
+            // 間が大きく空いた = PC が眠っていた・タブが止められていた。その長さを添えて知らせる
+            beat(gap > Math.max(every * 3, 30000) ? { slept_ms: gap } : undefined);
+        }, every);
+
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) beat();
+            if (document.hidden) tell('hidden');
+            else beat();
         });
+        // Chrome・Edge がタブを固める(止める)とき・戻すとき
+        document.addEventListener('freeze', () => tell('hidden'));
+        document.addEventListener('resume', () => beat());
+        // 閉じる(読み直しも)。戻る/進むの控えから戻ったら表に戻ったことにする
+        window.addEventListener('pagehide', () => tell('closed'));
+        window.addEventListener('pageshow', (e) => { if (e.persisted) beat(); });
+        window.addEventListener('focus', () => beat());
+        window.addEventListener('online', () => beat());
     }
 
     // --- 版の表示 ---

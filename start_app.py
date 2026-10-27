@@ -40,7 +40,7 @@ from typing import Optional
 APP_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP_ROOT))
 
-from coilcalc import app_config, instance_lock, logging_setup, stop_request, web  # noqa: E402
+from coilcalc import app_config, instance_lock, logging_setup, page_watch, stop_request, web  # noqa: E402
 from coilcalc.vc import db as vc_db  # noqa: E402
 
 MIN_PYTHON = (3, 8)
@@ -235,18 +235,30 @@ def serve(*, open_browser: bool = True, port: Optional[int] = None) -> int:
 
 
 def watch_idle(app: web.App, stopped: threading.Event, browser: dict) -> None:
-    """終了の要求か、画面が居なくなるまで待つ。
+    """終了の要求か、画面が居なくなるまで待つ(決め方は coilcalc/page_watch.py)。
 
-    画面は数秒ごとに知らせ(heartbeat)を送る。タブが全部閉じられて
-    `idle_exit_seconds` 知らせが無ければ終わる。最初に画面が来るまでは
+    画面は数秒ごとに知らせ(heartbeat)を送り、裏に回る・閉じるときも知らせる。
+    生きている画面が1つも無くなったら終わる。最初に画面が来るまでは
     `first_open_grace_seconds` 待つ(ブラウザの起動が遅い PC がある)。
+
+    **眠っていた時間は数えない**: この見張りは1秒ごとに回る。間が大きく空いたら
+    (Windows はスリープ中も時計が進む)止まっていたとみなし、その分を差し引く。
+    差し引かないと、起きた瞬間に「90 秒 知らせが無い」となり、ブラウザが知らせを
+    送るより先に終わる。
     """
-    idle = float(browser.get("idle_exit_seconds", 90))
-    grace = float(browser.get("first_open_grace_seconds", 180))
+    pages = app.pages
+    pages.idle = float(browser.get("idle_exit_seconds", pages.idle))
+    pages.grace = float(browser.get("first_open_grace_seconds", pages.grace))
+    pages.closing = float(browser.get("closed_exit_seconds", pages.closing))
+    last = time.monotonic()
     while not stopped.wait(1.0):
-        limit = idle if app.seen_page else grace
-        if limit > 0 and app.idle_seconds() > limit:
-            log.info("画面から %.0f 秒知らせが無いので終わります", limit)
+        tick = time.monotonic()
+        if tick - last >= page_watch.PAUSE_SECONDS:
+            pages.note_pause(tick - last - 1.0)
+        last = tick
+        reason = pages.reason_to_exit()
+        if reason:
+            log.info("終わります(%s)", reason)
             return
 
 

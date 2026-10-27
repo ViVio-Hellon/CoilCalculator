@@ -10,7 +10,8 @@ Flask は使いません(ラインPCの Python に追加のパッケージを入
     GET  /api/spec            入力の範囲(数値の正は coilcalc/calc.py)
     POST /api/coil/calc       コイルの計算 → 画面に出す文字一式
     POST /api/plate/calc      平板の計算 → 画面に出す文字一式
-    POST /api/heartbeat       画面が開いている知らせ(ブラウザ版の自動終了に使う)
+    POST /api/heartbeat       画面が開いている知らせ(ブラウザ版の自動終了に使う)。
+                              {"page": 画面の番号, "state": "visible"|"hidden"|"closed"}(coilcalc/page_watch.py)
     POST /api/shutdown        終了。**{"confirmed": true} のときだけ止まる**。無ければ 409 で確かめの文を返す
                               (ブラウザ版の「終了」もデスクトップ版の窓の × も、この同じ確かめを通る)
                               {"force": false|true} は業務ツール統合ランチャー・stop.bat からの停止
@@ -35,7 +36,6 @@ import mimetypes
 import os
 import platform
 import threading
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -43,6 +43,7 @@ from urllib.parse import unquote
 
 from . import app_config, calc
 from .vc import db as vc_db
+from .page_watch import PageWatch
 from .vc_api import VcApi
 from .logging_setup import get_logger
 
@@ -126,8 +127,11 @@ class App:
         self.allowed_hosts = tuple(h.lower() for h in allowed_hosts)
         self._on_shutdown = on_shutdown
         self._lock = threading.Lock()
-        self.last_seen = time.monotonic()
-        self.seen_page = False
+        browser = self.conf.get("browser", {})
+        #: 開いている画面の見張り(ブラウザ版の自動終了。coilcalc/page_watch.py)
+        self.pages = PageWatch(idle=float(browser.get("idle_exit_seconds", 90)),
+                               grace=float(browser.get("first_open_grace_seconds", 180)),
+                               closing=float(browser.get("closed_exit_seconds", 15)))
         self.stopping = False
         #: 待ち受けているポート(ブラウザ版だけ。デスクトップ版は 0 = ポートを使わない)
         self.port = 0
@@ -136,13 +140,12 @@ class App:
 
     # ------------------------------------------------------------------
     def touch(self) -> None:
-        with self._lock:
-            self.last_seen = time.monotonic()
-            self.seen_page = True
+        """画面からの要求(計算など)。誰かが使っている印。"""
+        self.pages.activity()
 
-    def idle_seconds(self) -> float:
-        with self._lock:
-            return time.monotonic() - self.last_seen
+    @property
+    def seen_page(self) -> bool:
+        return self.pages.seen_page
 
     # ------------------------------------------------------------------
     def handle(self, req: Request) -> Response:
@@ -227,7 +230,12 @@ class App:
                 log.info("最初の計算を返しました: %s (%s)", body["shape"], self.mode)
             return json_response(200, body)
         if path == "/api/heartbeat":
-            self.touch()
+            # 画面の番号と様子(visible / hidden / closed)。古い画面は本文が空(番号なし・visible)
+            state = str(body.get("state") or "visible")
+            self.pages.beat(str(body.get("page") or ""), state)
+            slept = body.get("slept_ms")
+            if isinstance(slept, (int, float)) and slept > 0:
+                log.info("画面のタイマーが %.0f 秒止まっていました(スリープ・タブの休止)", slept / 1000)
             return json_response(200, {"ok": True})
         if path == "/api/shutdown":
             if "force" in body:

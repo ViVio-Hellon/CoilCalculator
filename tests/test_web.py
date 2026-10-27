@@ -103,9 +103,11 @@ class DesktopModeTest(unittest.TestCase):
 
     def test_heartbeat_touches(self):
         self.assertFalse(self.app.seen_page)
-        self.app.handle(req("POST", "/api/heartbeat", {}))
+        self.app.handle(req("POST", "/api/heartbeat", {"page": "p1", "state": "visible"}))
         self.assertTrue(self.app.seen_page)
-        self.assertLess(self.app.idle_seconds(), 1)
+        self.assertEqual(self.app.pages.alive_pages(), 1)
+        self.app.handle(req("POST", "/api/heartbeat", {"page": "p1", "state": "closed"}))
+        self.assertEqual(self.app.pages.alive_pages(), 0)
 
 
 class BrowserGuardTest(unittest.TestCase):

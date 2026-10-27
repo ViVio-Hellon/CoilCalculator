@@ -1,7 +1,7 @@
 {
   "app_id": "nlm.coil-calculator",
   "display_name": "VC長さ・コイル平板 計算ツール",
-  "version": "2.3.2",
+  "version": "2.4.0",
 
   "local_dir_name": "CoilCalculator",
 
@@ -22,6 +22,7 @@
   "browser": {
     "heartbeat_seconds": 10,
     "idle_exit_seconds": 90,
-    "first_open_grace_seconds": 180
+    "first_open_grace_seconds": 180,
+    "closed_exit_seconds": 15
   }
 }
